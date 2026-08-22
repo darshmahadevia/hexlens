@@ -26,6 +26,40 @@ export interface Field {
   explanation: string;
 }
 
+/**
+ * A value whose meaning occupies only some bits of a byte-level Field.
+ * Bit fields never replace the Byte span that contains them: Selection keeps
+ * operating on complete bytes and the mask is an additional explanation.
+ */
+export interface BitField {
+  id: string;
+  name: string;
+  label: string;
+  span: ByteSpan;
+  mask: number;
+  value?: string | number;
+  fieldId?: string;
+  explanation?: string;
+}
+
+/** A calculated value that points back to its source Fields and owns no bytes. */
+export interface DerivedValue {
+  id: string;
+  name: string;
+  label: string;
+  value: string | number;
+  sourceFieldIds: string[];
+  explanation: string;
+}
+
+/** A byte span not claimed by a parsed Structure or Field. */
+export interface UnmappedSpan {
+  id: string;
+  span: ByteSpan;
+  label?: string;
+  reason?: string;
+}
+
 export interface Structure {
   id: string;
   name: string;
@@ -44,6 +78,10 @@ export interface Inspection {
   bytes: Uint8Array;
   structures: Structure[];
   diagnostics: Diagnostic[];
+  /** Optional collections keep the first parser contract backwards-compatible. */
+  bitFields?: BitField[];
+  derivedValues?: DerivedValue[];
+  unmappedSpans?: UnmappedSpan[];
 }
 
 export function spanContains(outer: ByteSpan, inner: ByteSpan): boolean {
