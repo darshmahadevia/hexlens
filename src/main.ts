@@ -1,9 +1,9 @@
 import './styles.css';
-import type { ByteSpan, Field, Inspection, Structure } from './domain/inspection.ts';
+import type { ByteSpan, Field, FormatId, Inspection, Structure } from './domain/inspection.ts';
 import { spanContains, spanIntersects, spanLabel } from './domain/inspection.ts';
-import { hasPngSignature, inspectPng } from './format.ts';
+import { detectFormat, inspectDetected } from './format.ts';
 import { FileJobController, type FileJobParseResult } from './file-session.ts';
-import { sampleInspection, PNG_SAMPLE_BASE64 } from './sample.ts';
+import { sampleInspection, PNG_SAMPLE_BASE64, wavSampleInspection, WAV_SAMPLE_BASE64 } from './sample.ts';
 
 const app = document.querySelector<HTMLDivElement>('#app');
 
@@ -11,6 +11,7 @@ if (!app) throw new Error('HexLens mount point is missing.');
 const mount = app;
 
 const sample = sampleInspection();
+const wavSample = wavSampleInspection();
 const MAX_LOCAL_FILE_BYTES = 25 * 1024 * 1024;
 
 type View = 'landing' | 'inspect';
@@ -53,12 +54,18 @@ function formatValue(value: string | number): string {
   return typeof value === 'number' ? value.toLocaleString('en-US') : value;
 }
 
-function sourceDataUrl(): string {
-  return `data:image/png;base64,${PNG_SAMPLE_BASE64}`;
+function formatLabel(format: FormatId): string {
+  return format === 'wav' ? 'WAV' : 'PNG';
 }
 
-function sampleSession(): InspectionSession {
-  return { kind: 'sample', inspection: sample, previewUrl: sourceDataUrl() };
+function sourceDataUrl(format: FormatId): string {
+  return format === 'wav'
+    ? `data:audio/wav;base64,${WAV_SAMPLE_BASE64}`
+    : `data:image/png;base64,${PNG_SAMPLE_BASE64}`;
+}
+
+function sampleSession(inspection: Inspection): InspectionSession {
+  return { kind: 'sample', inspection, previewUrl: sourceDataUrl(inspection.format) };
 }
 
 function revokePreview(target: InspectionSession | null): void {
@@ -71,7 +78,7 @@ function revokePreview(target: InspectionSession | null): void {
 function ensurePreview(target: InspectionSession): void {
   if (target.kind !== 'local' || target.previewUrl || typeof URL.createObjectURL !== 'function') return;
   const copy = new Uint8Array(target.inspection.bytes);
-  target.previewUrl = URL.createObjectURL(new Blob([copy.buffer], { type: 'image/png' }));
+  target.previewUrl = URL.createObjectURL(new Blob([copy.buffer], { type: target.inspection.format === 'wav' ? 'audio/wav' : 'image/png' }));
 }
 
 function selectedStructure(inspection: Inspection, selected: ByteSpan): Structure {
@@ -122,7 +129,7 @@ function renderStructureLabels(inspection: Inspection, selected?: ByteSpan, inte
 }
 
 function renderFileIngress(): string {
-  return `<div class="file-ingress" data-testid="file-ingress"><label class="button button-secondary file-picker"><span>Open a local PNG</span><input class="file-picker-input" type="file" accept=".png,image/png" aria-label="Choose one local PNG file" data-testid="local-file-input" /></label><span class="file-ingress-note">One file · stays in memory only</span></div>`;
+  return `<div class="file-ingress" data-testid="file-ingress"><label class="button button-secondary file-picker"><span>Open a local PNG or WAV</span><input class="file-picker-input" type="file" accept=".png,.wav,image/png,audio/wav" aria-label="Choose one local PNG file or WAV file" data-testid="local-file-input" /></label><span class="file-ingress-note">One file · stays in memory only</span></div>`;
 }
 
 function renderNotice(): string {
@@ -132,11 +139,11 @@ function renderNotice(): string {
 
 function operationLabel(inspection?: Inspection): string {
   if (operation.phase === 'reading') return 'Reading local file…';
-  if (operation.phase === 'parsing') return 'Parsing PNG locally…';
-  if (!inspection) return 'Ready for one local PNG file';
+  if (operation.phase === 'parsing') return 'Parsing locally…';
+  if (!inspection) return 'Ready for one local PNG or WAV file';
   const diagnosticCount = inspection.diagnostics.length;
   const suffix = diagnosticCount ? ` · ${diagnosticCount} Diagnostic${diagnosticCount === 1 ? '' : 's'}` : '';
-  return `${inspection.state === 'ready' ? 'Ready' : 'Partial Inspection'}${suffix} · file data stays in memory only`;
+  return `${inspection.state === 'ready' ? 'Ready' : 'Partial Inspection'}${suffix} · ${formatLabel(inspection.format)} · file data stays in memory only`;
 }
 
 function renderStatus(inspection?: Inspection): string {
@@ -187,7 +194,7 @@ function renderLanding(): void {
             <div class="sample-offsets" aria-hidden="true"><span>Offset</span><span>00</span><span>04</span><span>08</span><span>0C</span><span>14</span><span>18</span></div>
             ${renderByteStrip(sample, sample.structures[0]?.span)}
             <div class="landing-structure-map">${renderStructureLabels(sample, sample.structures[0]?.span)}</div>
-            <figure class="source-preview-mini"><figcaption>Source preview · original-file rendering</figcaption><img src="${sourceDataUrl()}" alt="A one-pixel PNG Sample rendered as a tiny transparent image" /></figure>
+            <figure class="source-preview-mini"><figcaption>Source preview · original-file rendering</figcaption><img src="${sourceDataUrl('png')}" alt="A one-pixel PNG Sample rendered as a tiny transparent image" /></figure>
           </div>
         </div>
 
@@ -200,7 +207,7 @@ function renderLanding(): void {
 function renderFieldInspector(structure: Structure | undefined, selected: ByteSpan): string {
   if (!structure) return '<div class="field-inspector"><p class="field-empty">No parsed Structures are available for this Inspection.</p></div>';
   const focused = selectedField(structure, selected) ?? (selected.offset === structure.span.offset && selected.length === structure.span.length
-    ? structure.fields.find((item) => item.name === 'width') ?? structure.fields[0]
+    ? structure.fields.find((item) => !['length', 'type'].includes(item.name)) ?? structure.fields[0]
     : undefined);
   const fields = structure.fields.map((field) => {
     const active = focused?.id === field.id;
@@ -232,9 +239,11 @@ function renderInspector(target: InspectionSession): void {
   const sourceName = inspection.sourceName || 'Unnamed local file';
   const identity = target.kind === 'local'
     ? `<strong class="file-name" title="${escapeHtml(sourceName)}" aria-label="Local filename: ${escapeHtml(sourceName)}">${escapeHtml(sourceName)}</strong>`
-    : '<strong>hexlens-sample.png</strong>';
+    : `<strong>hexlens-sample.${inspection.format}</strong>`;
   const preview = target.previewUrl
-    ? `<img src="${escapeHtml(target.previewUrl)}" alt="The local PNG rendered as the original file" />`
+    ? inspection.format === 'wav'
+      ? `<audio controls preload="metadata" src="${escapeHtml(target.previewUrl)}" aria-label="The WAV rendered as the original file"></audio>`
+      : `<img src="${escapeHtml(target.previewUrl)}" alt="The PNG rendered as the original file" />`
     : '<p class="preview-unavailable">Original-file rendering unavailable; the Inspection remains usable.</p>';
   mount.innerHTML = `
     <main class="app-shell inspector-shell">
@@ -244,21 +253,21 @@ function renderInspector(target: InspectionSession): void {
         <header class="inspector-toolbar">
           <a href="/" class="back-link">← Back to landing</a>
           <div class="toolbar-title"><span class="wordmark wordmark-small">HexLens</span><span class="toolbar-divider" aria-hidden="true"></span><h1 id="inspector-title">${target.kind === 'local' ? 'Local Inspection' : 'Sample Inspection'}</h1></div>
-          <div class="file-identity">${identity}<span>${inspection.bytes.length.toLocaleString('en-US')} bytes · PNG${target.kind === 'local' ? ' · local' : ''}</span></div>
+          <div class="file-identity">${identity}<span>${inspection.bytes.length.toLocaleString('en-US')} bytes · ${formatLabel(inspection.format)}${target.kind === 'local' ? ' · local' : ''}</span></div>
         </header>
         ${renderStatus(inspection)}
-        <div class="inspector-ingress"><div><strong>Open another local PNG</strong><span>Choose one file or drop it anywhere on this workbench.</span></div>${renderFileIngress()}</div>
+        <div class="inspector-ingress"><div><strong>Open another local file</strong><span>Choose one PNG or WAV file, or drop it anywhere on this workbench.</span></div>${renderFileIngress()}</div>
         ${renderNotice()}
         ${renderDiagnostics(inspection)}
 
         <div class="inspector-layout">
-          <aside class="structure-panel" aria-labelledby="structure-heading"><div class="panel-heading"><span id="structure-heading">Structures</span><span class="panel-rule" aria-hidden="true"></span></div><p class="panel-intro">The PNG's named parts, in source order.</p><nav class="structure-list" aria-label="PNG Structures">${renderStructureLabels(inspection, selection, true)}</nav><div class="structure-legend"><span class="legend-mark legend-structure" aria-hidden="true"></span><span>Structure span</span><span class="legend-mark legend-selection" aria-hidden="true"></span><span>Selected span</span></div></aside>
+          <aside class="structure-panel" aria-labelledby="structure-heading"><div class="panel-heading"><span id="structure-heading">Structures</span><span class="panel-rule" aria-hidden="true"></span></div><p class="panel-intro">The ${formatLabel(inspection.format)}'s named parts, in source order.</p><nav class="structure-list" aria-label="${formatLabel(inspection.format)} Structures">${renderStructureLabels(inspection, selection, true)}</nav><div class="structure-legend"><span class="legend-mark legend-structure" aria-hidden="true"></span><span>Structure span</span><span class="legend-mark legend-selection" aria-hidden="true"></span><span>Selected span</span></div></aside>
 
           <section class="byte-panel" aria-labelledby="bytes-heading"><div class="panel-heading"><span id="bytes-heading">Bytes</span><span class="panel-rule" aria-hidden="true"></span><span class="panel-meta">16 bytes / row</span></div><p class="panel-intro">Select a byte to focus the smallest matching Field.</p>${renderByteStrip(inspection, selection, true)}<div class="selection-summary" data-testid="selection-summary"><span class="summary-mark" aria-hidden="true"></span><span>${escapeHtml(selectedSummary)}</span></div><div class="ascii-note"><span class="mono">·</span> non-printable byte <span class="mono">·</span> printable ASCII appears at right</div></section>
 
           <aside class="field-panel" aria-labelledby="field-heading">${renderFieldInspector(structure, selection)}<figure class="source-preview"><figcaption id="field-heading">Source preview <span>· original-file rendering</span></figcaption>${preview}</figure></aside>
         </div>
-        <footer class="sheet-footer inspector-footer"><span>Inspection: <strong>${target.kind === 'local' ? 'Local PNG' : 'PNG Sample'}</strong></span><span>Source preview is not parsed output.</span><span class="footer-local">Local only · no telemetry</span></footer>
+        <footer class="sheet-footer inspector-footer"><span>Inspection: <strong>${target.kind === 'local' ? `Local ${formatLabel(inspection.format)}` : `${formatLabel(inspection.format)} Sample`}</strong></span><span>Source preview is not parsed output.</span><span class="footer-local">Local only · no telemetry</span></footer>
       </section>
     </main>
   `;
@@ -303,10 +312,10 @@ function renderEmptyInspector(): void {
         <header class="inspector-toolbar">
           <a href="/" class="back-link">← Back to landing</a>
           <div class="toolbar-title"><span class="wordmark wordmark-small">HexLens</span><span class="toolbar-divider" aria-hidden="true"></span><h1 id="inspector-title">Open an Inspection</h1></div>
-          <div class="file-identity"><strong>No file selected</strong><span>Local PNG only</span></div>
+          <div class="file-identity"><strong>No file selected</strong><span>Local PNG or WAV</span></div>
         </header>
         ${renderStatus()}
-        <div class="empty-inspector-content"><span class="plate-mark">One file, one Inspection</span><h2>Bring a PNG to the workbench.</h2><p>Choose one local PNG or drop it here. HexLens checks the bytes on this device and keeps the current file in memory only.</p>${renderFileIngress()}<p class="drop-hint">Drop one PNG file · directories and multiple files are not accepted.</p>${renderNotice()}</div>
+        <div class="empty-inspector-content"><span class="plate-mark">One file, one Inspection</span><h2>Bring a PNG or WAV to the workbench.</h2><p>Choose one local PNG or WAV, or drop it here. HexLens checks the bytes on this device and keeps the current file in memory only.</p>${renderFileIngress()}<p class="drop-hint">Drop one PNG or WAV file · directories and multiple files are not accepted.</p>${renderNotice()}</div>
       </section>
     </main>
   `;
@@ -328,16 +337,24 @@ function setNotice(kind: NoticeKind, message: string, origin = view): void {
 }
 
 function rejectionMessage(code: 'unsupported_format' | 'limit_reached' | 'invalid_input'): string {
-  if (code === 'limit_reached') return 'That file is larger than the local safety limit. Choose a PNG under 25 MiB; your current Inspection is still open.';
-  if (code === 'unsupported_format') return 'This file does not have a PNG signature. Choose a PNG file or try the Sample; your current Inspection is still open.';
-  return 'That input could not be opened. Choose one PNG file; your current Inspection is still open.';
+  if (code === 'limit_reached') return 'That file is larger than the local safety limit. Choose a PNG or WAV under 25 MiB; your current Inspection is still open.';
+  if (code === 'unsupported_format') return 'This file does not have a PNG signature or RIFF/WAVE signature. Choose one supported file or try a Sample; your current Inspection is still open.';
+  return 'That input could not be opened. Choose one PNG or WAV file; your current Inspection is still open.';
+}
+
+function initialSelection(inspection: Inspection): ByteSpan {
+  const first = inspection.structures[0]?.span;
+  const firstField = inspection.structures[0]?.fields[0]?.span;
+  return firstField ? { ...firstField } : first ? { ...first } : { offset: 0, length: Math.min(8, inspection.bytes.length) };
 }
 
 type LocalParseResult = FileJobParseResult<Inspection>;
 
 const fileJobs = new FileJobController<Inspection>(undefined, async (bytes, file): Promise<LocalParseResult> => {
-  if (!hasPngSignature(bytes)) return { accepted: false, rejection: { code: 'unsupported_format' } };
-  return { accepted: true, value: inspectPng(bytes, file.name, { mimeType: file.type }) };
+  const detected = detectFormat(bytes);
+  if (detected !== 'png' && detected !== 'wav') return { accepted: false, rejection: { code: 'unsupported_format' } };
+  const inspection = inspectDetected(bytes, file.name, { mimeType: file.type });
+  return inspection ? { accepted: true, value: inspection } : { accepted: false, rejection: { code: 'unsupported_format' } };
 });
 
 function startFileJob(file: File, origin: View): void {
@@ -358,11 +375,11 @@ function startFileJob(file: File, origin: View): void {
       const previous = session;
       session = { kind: 'local', inspection, previewUrl: undefined };
       ensurePreview(session);
-      selection = { offset: 0, length: Math.min(8, inspection.bytes.length) };
+      selection = initialSelection(inspection);
       view = 'inspect';
       if (origin === 'landing') window.history.pushState(null, '', '/inspect');
       else window.history.replaceState(null, '', '/inspect');
-      operation = { phase: 'ready', origin: 'inspect', notice: { kind: 'success', message: `Opened ${acceptedFile.type === 'image/png' ? 'a local PNG' : 'a local file as PNG'}. File data remains in memory only.` } };
+      operation = { phase: 'ready', origin: 'inspect', notice: { kind: 'success', message: `Opened a local ${formatLabel(inspection.format)}. File data remains in memory only.` } };
       render();
       revokePreview(previous);
     },
@@ -429,7 +446,7 @@ function handleDrop(event: DragEvent): void {
   mount.classList.remove('is-drag-active');
   const selectionFromDrop = classifyDrop(event.dataTransfer);
   if (selectionFromDrop.kind === 'directory') {
-    setNotice('error', 'Folders are not supported. Drop one PNG file; your current Inspection is still open.');
+    setNotice('error', 'Folders are not supported. Drop one PNG or WAV file; your current Inspection is still open.');
     return;
   }
   if (selectionFromDrop.kind === 'multiple') {
@@ -437,7 +454,7 @@ function handleDrop(event: DragEvent): void {
     return;
   }
   if (selectionFromDrop.kind !== 'file' || !selectionFromDrop.file) {
-    setNotice('error', 'Drop one PNG file. Your current Inspection is still open.');
+    setNotice('error', 'Drop one PNG or WAV file. Your current Inspection is still open.');
     return;
   }
   startFileJob(selectionFromDrop.file, view);
@@ -483,11 +500,11 @@ function renderRoute(): void {
   }
 
   const params = new URLSearchParams(window.location.search);
-  if (params.get('sample') === 'png') {
+  if (params.get('sample') === 'png' || params.get('sample') === 'wav') {
     fileJobs.cancel();
     revokePreview(session);
-    session = sampleSession();
-    selection = { offset: 0, length: 8 };
+    session = sampleSession(params.get('sample') === 'wav' ? wavSample : sample);
+    selection = initialSelection(session.inspection);
     operation = { phase: 'ready', origin: 'inspect' };
   }
   render();
