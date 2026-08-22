@@ -64,7 +64,19 @@ interface InspectionSession {
 
 type NarrowTab = 'structures' | 'bytes' | 'fields';
 
-const currentView = (): View => window.location.pathname === '/inspect' ? 'inspect' : 'landing';
+const BASE_PATH = import.meta.env.BASE_URL === '/' ? '' : import.meta.env.BASE_URL.replace(/\/$/, '');
+
+function routeHref(route: '/' | '/inspect' | `/inspect?sample=${'png' | 'wav'}`): string {
+  return `${BASE_PATH}${route}`;
+}
+
+function routePathname(pathname: string): string {
+  if (!BASE_PATH) return pathname;
+  if (pathname === BASE_PATH) return '/';
+  return pathname.startsWith(`${BASE_PATH}/`) ? pathname.slice(BASE_PATH.length) : pathname;
+}
+
+const currentView = (): View => routePathname(window.location.pathname) === '/inspect' ? 'inspect' : 'landing';
 let view: View = currentView();
 let session: InspectionSession | null = null;
 let operation: OperationState = { phase: 'ready', origin: view };
@@ -139,12 +151,12 @@ function renderEmptyInspector(): void {
         <div class="registration registration-top-left" aria-hidden="true"></div>
         <div class="registration registration-top-right" aria-hidden="true"></div>
         <header class="inspector-toolbar" aria-label="Inspection toolbar">
-          <a href="/" class="back-link">← Back to landing</a>
+          <a href="${routeHref('/')}" class="back-link">← Back to landing</a>
           <div class="toolbar-title"><span class="wordmark wordmark-small">HexLens</span><span class="toolbar-divider" aria-hidden="true"></span><h1 id="inspector-title">Open an Inspection</h1></div>
           <div class="file-identity"><strong>No file selected</strong><span>${narrow ? 'Bundled PNG or WAV Sample' : 'Local PNG or WAV'}</span></div>
         </header>
         ${renderStatus()}
-        <div class="empty-inspector-content"><span class="plate-mark">${narrow ? 'Sample Inspection' : 'One file, one Inspection'}</span><h2>${narrow ? 'Choose a Sample to begin.' : 'Bring a PNG or WAV to the workbench.'}</h2><p>${narrow ? 'Phone view is reserved for the bundled PNG and WAV Samples. Choose one to explore its Structures, bytes, and Fields.' : 'Choose one local PNG or WAV, or drop it here. HexLens checks the bytes on this device and keeps the current file in memory only.'}</p>${narrow ? `<div class="sample-links" aria-label="Sample files"><a class="button button-primary" href="/inspect?sample=png">Open PNG Sample</a><a class="button button-secondary" href="/inspect?sample=wav">Open WAV Sample</a></div>` : `${renderFileIngress()}<p class="drop-hint">Drop one PNG or WAV file · directories and multiple files are not accepted.</p>`}${renderNotice()}</div>
+        <div class="empty-inspector-content"><span class="plate-mark">${narrow ? 'Sample Inspection' : 'One file, one Inspection'}</span><h2>${narrow ? 'Choose a Sample to begin.' : 'Bring a PNG or WAV to the workbench.'}</h2><p>${narrow ? 'Phone view is reserved for the bundled PNG and WAV Samples. Choose one to explore its Structures, bytes, and Fields.' : 'Choose one local PNG or WAV, or drop it here. HexLens checks the bytes on this device and keeps the current file in memory only.'}</p>${narrow ? `<div class="sample-links" aria-label="Sample files"><a class="button button-primary" href="${routeHref('/inspect?sample=png')}">Open PNG Sample</a><a class="button button-secondary" href="${routeHref('/inspect?sample=wav')}">Open WAV Sample</a></div>` : `${renderFileIngress()}<p class="drop-hint">Drop one PNG or WAV file · directories and multiple files are not accepted.</p>`}${renderNotice()}</div>
       </section>
     </main>
   `;
@@ -224,8 +236,8 @@ function startFileJob(file: File, origin: View): void {
       session = { kind: 'local', inspection, previewUrl: undefined };
       ensurePreview(session);
       view = 'inspect';
-      if (origin === 'landing') window.history.pushState(null, '', '/inspect');
-      else window.history.replaceState(null, '', '/inspect');
+      if (origin === 'landing') window.history.pushState(null, '', routeHref('/inspect'));
+      else window.history.replaceState(null, '', routeHref('/inspect'));
       const status = inspection.status ?? (inspection.state === 'ready' ? 'ready' : 'partial');
       const message = status === 'unsupported'
         ? 'Unsupported Format. Raw bytes remain available; no semantic claims were made.'
@@ -263,8 +275,8 @@ function startFileJob(file: File, origin: View): void {
           previewUrl: undefined,
         };
         view = 'inspect';
-        if (origin === 'landing') window.history.pushState(null, '', '/inspect');
-        else window.history.replaceState(null, '', '/inspect');
+        if (origin === 'landing') window.history.pushState(null, '', routeHref('/inspect'));
+        else window.history.replaceState(null, '', routeHref('/inspect'));
         operation = { phase: 'ready', origin: 'inspect', jobId: callbackJobId, notice: { kind: 'error', message: 'The application could not complete semantic parsing. The raw-byte fallback is bounded; no semantic output was published.' } };
         render();
         publishImmediateAnnouncement('The application could not complete semantic parsing. The raw-byte fallback is bounded; no semantic output was published.');
@@ -482,7 +494,7 @@ function renderLanding(nextSelection: ByteSpan = landingSelection, focusSelector
         <div class="registration registration-top-left" aria-hidden="true"></div>
         <div class="registration registration-top-right" aria-hidden="true"></div>
         <div class="masthead">
-          <a class="wordmark" href="/" aria-label="HexLens home">HexLens</a>
+          <a class="wordmark" href="${routeHref('/')}" aria-label="HexLens home">HexLens</a>
           <span class="masthead-rule" aria-hidden="true"></span>
           <span class="masthead-label">Local binary structure inspector</span>
           <dl class="accession-meta">
@@ -498,7 +510,7 @@ function renderLanding(nextSelection: ByteSpan = landingSelection, focusSelector
             <p class="lead-copy">${narrow ? 'HexLens ties each bundled Sample to the named Structures and bytes that form it.' : 'HexLens opens a binary file on your machine and ties its named Structures to the bytes that form them.'}</p>
             <p class="support-copy">No uploads. No guesswork.<br />Just bytes, offsets, and meaning.</p>
             <div class="landing-actions">
-              <a class="button button-primary" href="/inspect?sample=png" data-testid="try-sample">Try the sample <span aria-hidden="true">→</span></a>
+              <a class="button button-primary" href="${routeHref('/inspect?sample=png')}" data-testid="try-sample">Try the sample <span aria-hidden="true">→</span></a>
               ${renderFileIngress(narrow)}
             </div>
             ${narrow ? '<p class="sample-only-note">Phone view · open a bundled PNG or WAV Sample.</p>' : '<p class="drop-hint" data-testid="drop-hint">Or drop one PNG or WAV file onto this sheet.</p>'}
@@ -536,7 +548,7 @@ function renderLanding(nextSelection: ByteSpan = landingSelection, focusSelector
 
         <section class="landing-beat landing-beat-local" aria-labelledby="local-heading" data-testid="landing-beat-local">
           <div class="local-close"><span class="lock-mark" aria-hidden="true"><span></span></span><div><h2 id="local-heading">Your file stays with you.</h2><p>Choose one local PNG or WAV on desktop. Bytes, filenames, metadata, offsets, and Diagnostics stay in memory on this device; they do not enter URLs, storage, logs, telemetry, or outgoing requests.</p><p class="local-close-note">No upload. Just a short path from Sample to Inspection.</p></div></div>
-          <a class="button button-primary landing-final-action" href="/inspect?sample=png" data-testid="try-sample-final">Try the sample <span aria-hidden="true">→</span></a>
+          <a class="button button-primary landing-final-action" href="${routeHref('/inspect?sample=png')}" data-testid="try-sample-final">Try the sample <span aria-hidden="true">→</span></a>
         </section>
 
         <footer class="sheet-footer"><span>Method: <strong>visual byte inspection</strong></span><span>Medium: <strong>hexadecimal</strong></span><span>Tool: <strong>HexLens (local)</strong></span><span class="stamp" aria-label="HexLens sample mark">HL<br />25</span></footer>
@@ -621,6 +633,8 @@ class VirtualByteGrid {
     this.viewport.setAttribute('aria-label', this.enumerateRawBytes
       ? 'Virtualized byte grid; raw bytes are individually keyboard reachable'
       : 'Virtualized byte grid; raw-byte enumeration is off, use go to offset or arrow keys');
+    this.viewport.setAttribute('aria-rowcount', String(rowCount(this.inspection.bytes.length)));
+    this.viewport.setAttribute('aria-colcount', String(BYTES_PER_ROW));
     this.viewport.setAttribute('aria-describedby', 'selection-summary byte-grid-help');
     this.viewport.setAttribute('aria-keyshortcuts', 'ArrowLeft ArrowRight ArrowUp ArrowDown Home End Shift');
     this.viewport.addEventListener('scroll', this.handleScroll, { passive: true });
@@ -725,20 +739,20 @@ class VirtualByteGrid {
     rowElement.className = 'byte-grid-row';
     rowElement.setAttribute('role', 'row');
     rowElement.setAttribute('aria-rowindex', String(rowIndex + 1));
-    rowElement.setAttribute('aria-rowcount', String(rowCount(this.inspection.bytes.length)));
     rowElement.dataset.rowIndex = String(rowIndex);
     rowElement.style.transform = `translateY(${row.index * GRID_ROW_HEIGHT}px)`;
     rowElement.style.height = `${GRID_ROW_HEIGHT}px`;
 
     const offset = document.createElement('span');
     offset.className = 'byte-offset';
+    offset.setAttribute('role', 'rowheader');
     offset.textContent = formatOffset(row.offset, this.inspection.bytes.length);
     offset.setAttribute('aria-label', `Row offset hexadecimal ${formatOffset(row.offset, this.inspection.bytes.length)}, decimal ${formatDecimalOffset(row.offset)}`);
     rowElement.appendChild(offset);
 
     const cells = document.createElement('div');
     cells.className = 'byte-grid-cells';
-    cells.setAttribute('role', 'group');
+    cells.setAttribute('role', 'gridcell');
     cells.setAttribute('aria-label', `Hexadecimal bytes at offset ${formatOffset(row.offset, this.inspection.bytes.length)}`);
     row.values.forEach((value, index) => {
       const byteOffset = row.offset + index;
@@ -755,7 +769,6 @@ class VirtualByteGrid {
       cell.id = `byte-cell-${byteOffset}`;
       cell.tabIndex = this.enumerateRawBytes ? 0 : -1;
       cell.setAttribute('aria-pressed', String(isSelected));
-      cell.setAttribute('aria-selected', String(isSelected));
       const ownershipDescription = owner.kind === 'unmapped' || owner.kind === 'unowned'
         ? 'Unmapped span'
         : owner.kind === 'field' ? 'Structure-owned Field' : 'Structure-owned byte';
@@ -931,7 +944,7 @@ function renderInspector(target: InspectionSession, requestedSelection?: ByteSpa
         <div class="registration registration-top-left" aria-hidden="true"></div>
         <div class="registration registration-top-right" aria-hidden="true"></div>
         <header class="inspector-toolbar">
-          <a href="/" class="back-link">← Back to landing</a>
+          <a href="${routeHref('/')}" class="back-link">← Back to landing</a>
           <div class="toolbar-title"><span class="wordmark wordmark-small">HexLens</span><span class="toolbar-divider" aria-hidden="true"></span><h1 id="inspector-title">${target.kind === 'local' ? 'Local Inspection' : 'Sample Inspection'}</h1></div>
           <div class="file-identity"><strong title="${escapeHtml(sourceName)}" aria-label="${target.kind === 'local' ? `Local filename: ${escapeHtml(sourceName)}` : escapeHtml(sourceName)}">${escapeHtml(sourceName)}</strong><span>${inspection.bytes.length.toLocaleString('en-US')} bytes · ${displayFormat}${target.kind === 'local' ? ' · local' : ''}</span></div>
         </header>

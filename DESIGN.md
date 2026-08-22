@@ -184,6 +184,8 @@ Most surfaces and controls are square: the form language is an annotated sheet, 
 
 The byte grid uses 16-byte rows, uppercase two-digit values, uppercase zero-padded offsets, and a printable-ASCII gutter where space allows. A selected Structure or byte paints the matching cells oxide and draws a thin oxide bracket around the exact span. The Structure list and Field inspector update from the same Byte span model.
 
+The shipped grid keeps a bounded mounted-row window while exposing the full row and column counts to assistive technology. A persistent selected-span summary names the current offset and length beside the grid, so the same selection remains legible when the byte cells are virtualized or the inspector is stacked on a narrow screen.
+
 ### Source Preview
 
 The Source preview is explicitly labeled as the original-file rendering. For the PNG Sample it is a tiny native image rendering, visually subordinate to the parsed Structure and Field data; it is never described as parser output.

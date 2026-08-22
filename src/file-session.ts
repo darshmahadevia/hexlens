@@ -11,8 +11,8 @@ import { INSPECTION_LIMITS } from './domain/inspection.ts';
 export type FileJobPhase = 'reading' | 'parsing';
 
 export const FILE_JOB_LIMITS = Object.freeze({
-  slowNoticeMs: 2_000,
-  terminationDeadlineMs: 250,
+  slowNoticeMs: INSPECTION_LIMITS.slowNoticeMs,
+  terminationDeadlineMs: INSPECTION_LIMITS.cancellationDeadlineMs,
 });
 
 export interface FileJobControllerOptions {
