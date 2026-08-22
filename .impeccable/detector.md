@@ -1,9 +1,9 @@
 # Detector evidence
 
-The Impeccable detector was run once on the UI targets:
+The Impeccable detector was run once on the changed UI targets:
 
 ```text
 node /Users/darshm/.agents/skills/impeccable/scripts/detect.mjs --json index.html src/main.ts src/styles.css
 ```
 
-The environment fell back to the regex detector because parser modules were unavailable. It reported one warning, `side-tab` / “Side-tab accent border”, at the 3px left accent border in `src/styles.css`. That mechanical finding was fixed by reducing the structure and legend accent borders to 1px. No second detector run was performed, per the workflow.
+The environment fell back to the regex detector because parser modules were unavailable, so custom properties, selector matching, and computed contrast were not evaluated. The run returned advisory `design-system-font-size` findings for the existing literal type ramp (including the new landing-ledger sizes) and no mechanical side-tab, radius, shadow, gradient, or generic-card blockers. No second detector run was performed, per the workflow.
