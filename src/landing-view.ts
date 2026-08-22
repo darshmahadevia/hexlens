@@ -66,8 +66,12 @@ function renderLandingSelectionNote(selected: ByteSpan): string {
   return `<aside class="landing-selection-note" id="landing-selection-summary" data-testid="landing-selection-summary" aria-live="polite"><h3>${escapeHtml(selectedLabel)}</h3><p>${escapeHtml(explanation)}</p><dl><div><dt>Byte span</dt><dd>${spanLabel(selected)} · ${selected.length} bytes</dd></div><div><dt>Encoded</dt><dd class="mono">${escapeHtml(encoded)}</dd></div><div><dt>Value</dt><dd>${escapeHtml(value)}</dd></div></dl></aside>`;
 }
 
-function localMark(narrow: boolean): string {
-  return `<span class="editorial-local-mark"><i aria-hidden="true"></i>${narrow ? 'Samples stay in this browser' : 'Files stay in this browser'}</span>`;
+function localMark(): string {
+  return '<span class="editorial-local-mark"><i aria-hidden="true"></i>Files stay in this browser</span>';
+}
+
+function mobileAvailability(testId: string): string {
+  return `<div class="mobile-availability"><span class="button mobile-coming-soon" data-testid="${testId}">Coming soon</span><p>Use HexLens on desktop today. The mobile inspector is on its way.</p></div>`;
 }
 
 export function renderLanding(options: LandingViewOptions, nextSelection: ByteSpan = options.getSelection(), focusSelector?: string): void {
@@ -91,13 +95,11 @@ export function renderLanding(options: LandingViewOptions, nextSelection: ByteSp
 
         <section class="editorial-hero" aria-labelledby="landing-title">
           <div class="editorial-manifesto">
-            <div><h1 id="landing-title">Read the file.<br />See its structure.</h1><p>${narrow ? 'Explore the named Structures and bytes inside bundled PNG and WAV Samples.' : 'Inspect PNG and WAV files without sending a byte away from your browser.'}</p></div>
+            <div><h1 id="landing-title">Read the file.<br />See its structure.</h1><p>Inspect PNG and WAV files without sending a byte away from your browser.</p></div>
             <div class="editorial-actions">
-              <a class="button button-primary" href="${options.routeHref('/inspect?sample=png')}" data-testid="try-sample">Try the sample ${arrowIcon('right')}</a>
-              ${options.renderFileIngress(narrow)}
-              ${narrow ? '' : '<p class="drop-hint" data-testid="drop-hint">Or drop one PNG or WAV file anywhere on this page.</p>'}
+              ${narrow ? mobileAvailability('mobile-coming-soon') : `<a class="button button-primary" href="${options.routeHref('/inspect?sample=png')}" data-testid="try-sample">Try the sample ${arrowIcon('right')}</a>${options.renderFileIngress()}<p class="drop-hint" data-testid="drop-hint">Or drop one PNG or WAV file anywhere on this page.</p>`}
               ${options.renderNotice()}
-              ${localMark(narrow)}
+              ${localMark()}
               ${options.operationPhase() !== 'ready' ? `<p class="landing-operation" role="status" aria-live="polite">${options.operationLabel()}</p>` : ''}
             </div>
           </div>
@@ -112,7 +114,7 @@ export function renderLanding(options: LandingViewOptions, nextSelection: ByteSp
             </ol>
             <nav class="landing-structure-map" aria-label="PNG sample Structures">${renderStructureTree(options.sample, selection, true, 'landing-')}</nav>
             ${renderLandingSelectionNote(selection)}
-            <footer>${localMark(narrow)}<span>No upload. No account.</span></footer>
+            <footer>${localMark()}<span>No upload. No account.</span></footer>
             <figure class="source-preview-mini"><figcaption>Source preview · original-file rendering</figcaption><img src="${options.sourceDataUrl('png')}" alt="A one-pixel PNG Sample rendered as a tiny transparent image" /></figure>
           </div>
         </section>
@@ -132,13 +134,13 @@ export function renderLanding(options: LandingViewOptions, nextSelection: ByteSp
         </section>
 
         <section class="editorial-teach landing-beat" aria-labelledby="teach-heading">
-          <div><h2 id="teach-heading">Learn the format while you inspect it.</h2><p>The Info tab explains why each Structure exists and how to read its bytes. The lesson follows your current Selection.</p><a class="button button-primary" href="${options.routeHref('/inspect?sample=png&panel=info')}">Open the educational view ${arrowIcon('right')}</a></div>
+          <div><h2 id="teach-heading">Learn the format while you inspect it.</h2><p>The Info tab explains why each Structure exists and how to read its bytes. The lesson follows your current Selection.</p>${narrow ? '<p class="mobile-section-availability">The educational inspector is coming soon on mobile.</p>' : `<a class="button button-primary" href="${options.routeHref('/inspect?sample=png&panel=info')}">Open the educational view ${arrowIcon('right')}</a>`}</div>
           <aside><strong>The file's ID card</strong><p>Every PNG starts with a fixed eight-byte signature. Software can identify the format before decoding pixels.</p></aside>
         </section>
 
         <section class="editorial-close landing-beat landing-beat-local" aria-labelledby="local-heading" data-testid="landing-beat-local">
           <div><h2 id="local-heading">Your file stays with you.</h2><p>HexLens keeps file bytes, names, metadata, offsets, and Diagnostics in memory on this device. They do not enter URLs, storage, logs, telemetry, or outgoing requests.</p></div>
-          <div>${localMark(narrow)}<a class="button button-primary landing-final-action" href="${options.routeHref('/inspect?sample=png')}" data-testid="try-sample-final">Inspect the sample ${arrowIcon('right')}</a></div>
+          <div>${localMark()}${narrow ? '<span class="button mobile-coming-soon landing-final-action" data-testid="mobile-coming-soon-final">Coming soon</span>' : `<a class="button button-primary landing-final-action" href="${options.routeHref('/inspect?sample=png')}" data-testid="try-sample-final">Inspect the sample ${arrowIcon('right')}</a>`}</div>
         </section>
 
         <footer class="sheet-footer"><span><strong>HexLens</strong> · local by design</span><span>PNG and WAV</span><span>No uploads. No telemetry.</span></footer>

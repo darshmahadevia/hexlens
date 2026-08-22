@@ -2606,3 +2606,46 @@ select { caret-color: var(--oxide); }
   .editorial-proof .landing-selection-note,
   .editorial-connection-rows > div { animation: none; }
 }
+
+/* Mobile landing keeps the desktop story while the inspector remains desktop-first. */
+.mobile-availability {
+  display: grid;
+  gap: 12px;
+  width: min(100%, 420px);
+}
+
+.mobile-coming-soon {
+  justify-content: center;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  box-shadow: none;
+  cursor: default;
+}
+
+.mobile-availability p,
+.mobile-section-availability {
+  max-width: 38ch;
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+
+.mobile-section-availability {
+  padding: 18px 0;
+  border-top: 1px solid var(--ink);
+  border-bottom: 1px solid var(--rule);
+}
+
+.editorial-close .mobile-coming-soon {
+  border-color: #faf4e9;
+  background: #faf4e9;
+  color: #15130f;
+}
+
+@media (min-width: 621px) {
+  .mobile-availability,
+  .mobile-section-availability,
+  .mobile-coming-soon { display: none; }
+}

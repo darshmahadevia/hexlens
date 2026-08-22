@@ -45,15 +45,13 @@ test('the landing sheet remains keyboard-usable, motion-safe, and within the nar
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/');
 
-  await expect(page.getByTestId('try-sample')).toBeVisible();
-  await expect(page.getByRole('button', { name: /Open a file/ })).toBeVisible();
+  await expect(page.getByTestId('mobile-coming-soon')).toHaveText('Coming soon');
+  await expect(page.getByTestId('mobile-coming-soon-final')).toHaveText('Coming soon');
+  await expect(page.getByTestId('try-sample')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Open a file/ })).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-
-  const sampleButton = page.getByTestId('try-sample');
-  await sampleButton.focus();
-  await expect(sampleButton).toBeFocused();
-  await page.keyboard.press('Enter');
-  await expect(page).toHaveURL(/\/inspect\?sample=png/);
+  await expect(page.getByText('Inspect PNG and WAV files without sending a byte away from your browser.')).toBeVisible();
+  await expect(page).toHaveURL(/\/$/);
 });
 
 test('the light and dark theme control persists the visitor preference', async ({ page }) => {
