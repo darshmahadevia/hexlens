@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prototype": "vite --host 127.0.0.1 --open '/?variant=A&surface=landing&theme=light'",
     "build": "tsc --noEmit && vite build",
     "profile:release": "node --expose-gc --import tsx scripts/profile-release.ts",
     "audit:release": "playwright test tests/browser/release-audit.spec.ts",

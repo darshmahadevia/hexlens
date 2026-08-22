@@ -36,6 +36,10 @@ initializeTheme();
 const app = document.querySelector<HTMLDivElement>('#app');
 
 if (!app) throw new Error('HexLens mount point is missing.');
+
+if (import.meta.env.DEV && new URLSearchParams(window.location.search).has('variant')) {
+  void import('./ui-prototype.ts').then(({ mountUiPrototype }) => mountUiPrototype(app));
+} else {
 const mount = app;
 
 const sample = sampleInspection();
@@ -774,3 +778,4 @@ window.addEventListener('resize', () => {
 });
 window.addEventListener('beforeunload', () => revokePreview(session));
 renderRoute();
+}
