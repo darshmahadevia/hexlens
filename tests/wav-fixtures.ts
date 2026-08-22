@@ -61,8 +61,14 @@ export function infoPayload(values: Record<string, string>): number[] {
 
 export function wav(chunks: WavChunk[], declaredLength?: number, root = 'RIFF'): Uint8Array {
   const body = [...ascii('WAVE')];
-  for (const item of chunks) body.push(...chunk(item.id, item.payload, item.pad !== false));
-  return Uint8Array.from([...ascii(root), ...le32(declaredLength ?? body.length), ...body]);
+  for (const item of chunks) {
+    for (const value of chunk(item.id, item.payload, item.pad !== false)) body.push(value);
+  }
+  const result = new Uint8Array(8 + body.length);
+  result.set(ascii(root), 0);
+  result.set(le32(declaredLength ?? body.length), 4);
+  result.set(Uint8Array.from(body), 8);
+  return result;
 }
 
 export const pcmWav = wav([

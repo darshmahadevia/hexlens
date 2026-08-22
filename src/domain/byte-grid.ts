@@ -259,6 +259,9 @@ export function selectionHex(bytes: Uint8Array | number[], selection: ByteSpan):
 }
 
 export function fieldValueText(field: Field): string {
+  if (field.status === 'absent') return 'Absent';
+  if (field.status === 'opaque') return 'Opaque Payload';
+  if (field.status === 'invalid') return 'Invalid value';
   return typeof field.value === 'number' ? String(field.value) : field.value;
 }
 

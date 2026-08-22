@@ -40,7 +40,7 @@ test('opens and replaces one local PNG without putting file identity in the URL'
   await expect(page.getByText('replacement.png', { exact: true })).toBeVisible();
 });
 
-test('rejects an invalid or multi-file drop while preserving the current Inspection', async ({ page }) => {
+test('opens an unsupported local file as a raw-byte Inspection and preserves it across invalid drops', async ({ page }) => {
   const sampleBytes = readFileSync(samplePath);
   await page.goto('/inspect?sample=png');
   await expect(page.getByText('hexlens-sample.png', { exact: true })).toBeVisible();
@@ -51,7 +51,7 @@ test('rejects an invalid or multi-file drop while preserving the current Inspect
     buffer: Buffer.from('not a PNG'),
   });
   await expect(page.getByTestId('file-feedback')).toContainText('does not have a PNG signature');
-  await expect(page.getByText('hexlens-sample.png', { exact: true })).toBeVisible();
+  await expect(page.getByText('not-a-png.png', { exact: true })).toBeVisible();
 
   await page.evaluate(() => {
     const transfer = new DataTransfer();
@@ -60,7 +60,7 @@ test('rejects an invalid or multi-file drop while preserving the current Inspect
     document.querySelector<HTMLElement>('[data-drop-target="inspector"]')?.dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer: transfer }));
   });
   await expect(page.getByTestId('file-feedback')).toContainText('Choose one file at a time');
-  await expect(page.getByText('hexlens-sample.png', { exact: true })).toBeVisible();
+  await expect(page.getByText('not-a-png.png', { exact: true })).toBeVisible();
 
   await page.evaluate(() => {
     const event = new Event('drop', { bubbles: true, cancelable: true });
@@ -73,5 +73,5 @@ test('rejects an invalid or multi-file drop while preserving the current Inspect
     document.querySelector<HTMLElement>('[data-drop-target="inspector"]')?.dispatchEvent(event);
   });
   await expect(page.getByTestId('file-feedback')).toContainText('Folders are not supported');
-  await expect(page.getByText('hexlens-sample.png', { exact: true })).toBeVisible();
+  await expect(page.getByText('not-a-png.png', { exact: true })).toBeVisible();
 });

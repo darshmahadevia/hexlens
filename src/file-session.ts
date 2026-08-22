@@ -43,7 +43,10 @@ export interface FileJobCallbacks<T> {
 }
 
 export type FileReader = (file: File, signal: AbortSignal) => Promise<ArrayBuffer>;
-export type FileParser<T> = (bytes: Uint8Array, file: File, signal: AbortSignal) => Promise<FileJobParseResult<T>> | FileJobParseResult<T>;
+export type FileParser<T> = ((bytes: Uint8Array, file: File, signal: AbortSignal, jobId?: number) => Promise<FileJobParseResult<T>> | FileJobParseResult<T>) & {
+  cancelJob?: (jobId: number) => void;
+  terminateJob?: (jobId: number) => void;
+};
 
 interface ActiveJob {
   id: number;
@@ -77,6 +80,90 @@ export async function readLocalFile(file: File, signal: AbortSignal): Promise<Ar
     : file.arrayBuffer());
   throwIfAborted(signal);
   return buffer;
+}
+
+interface WorkerResult<T> {
+  type: 'result';
+  jobId: number;
+  result: FileJobParseResult<T>;
+}
+
+interface WorkerFailure {
+  type: 'error';
+  jobId: number;
+}
+
+interface WorkerParserHandle<T> {
+  resolve: (result: FileJobParseResult<T>) => void;
+  reject: (error: unknown) => void;
+  signal: AbortSignal;
+  onAbort: () => void;
+}
+
+/**
+ * Parse local bytes in a module Worker. The returned callable is still a
+ * FileParser so the lifecycle controller can be tested with a synchronous
+ * parser, while cancelJob/terminateJob give the browser path an explicit hard
+ * stop for replacement and unresponsive work.
+ */
+export function createWorkerFileParser<T>(): FileParser<T> {
+  let worker: Worker | undefined;
+  const pending = new Map<number, WorkerParserHandle<T>>();
+
+  const ensureWorker = (): Worker => {
+    if (worker) return worker;
+    worker = new Worker(new URL('./inspection-worker.ts', import.meta.url), { type: 'module' });
+    worker.onmessage = (event: MessageEvent<WorkerResult<T> | WorkerFailure>): void => {
+      const message = event.data;
+      const handle = pending.get(message.jobId);
+      if (!handle) return;
+      pending.delete(message.jobId);
+      handle.signal.removeEventListener('abort', handle.onAbort);
+      if (message.type === 'error') handle.reject(new Error('Inspection worker failed.'));
+      else handle.resolve(message.result);
+    };
+    worker.onerror = (): void => {
+      for (const handle of pending.values()) {
+        handle.signal.removeEventListener('abort', handle.onAbort);
+        handle.reject(new Error('Inspection worker failed.'));
+      }
+      pending.clear();
+      worker = undefined;
+    };
+    return worker;
+  };
+
+  const parser = (async (bytes: Uint8Array, file: File, signal: AbortSignal, jobId = 0): Promise<FileJobParseResult<T>> => {
+    const workerRef = ensureWorker();
+    return new Promise<FileJobParseResult<T>>((resolve, reject) => {
+      const onAbort = (): void => {
+        workerRef.postMessage({ type: 'abort', jobId });
+      };
+      pending.set(jobId, { resolve, reject, signal, onAbort });
+      signal.addEventListener('abort', onAbort, { once: true });
+      workerRef.postMessage({
+        type: 'parse',
+        jobId,
+        bytes: new Uint8Array(bytes),
+        sourceName: file.name,
+        mimeType: file.type,
+      });
+    });
+  }) as FileParser<T>;
+
+  parser.cancelJob = (jobId: number): void => {
+    worker?.postMessage({ type: 'abort', jobId });
+  };
+  parser.terminateJob = (_jobId: number): void => {
+    worker?.terminate();
+    worker = undefined;
+    for (const handle of pending.values()) {
+      handle.signal.removeEventListener('abort', handle.onAbort);
+      handle.reject(new DOMException('The inspection worker was terminated.', 'AbortError'));
+    }
+    pending.clear();
+  };
+  return parser;
 }
 
 /** Yield once so a visible parsing state can paint before synchronous parsers run. */
@@ -116,10 +203,18 @@ export class FileJobController<T> {
     active.controller.abort();
     active.canceled = true;
     if (active.slowTimer !== undefined) clearTimeout(active.slowTimer);
+    this.parser.cancelJob?.(active.id);
     if (notify) active.callbacks.onAborted?.(active.id);
-    active.terminationTimer = setTimeout(() => {
-      active.callbacks.onTerminated?.(active.id);
-    }, this.limits.terminationDeadlineMs);
+    if (notify) {
+      active.terminationTimer = setTimeout(() => {
+        this.parser.terminateJob?.(active.id);
+        active.callbacks.onTerminated?.(active.id);
+      }, this.limits.terminationDeadlineMs);
+    } else {
+      // A replacement must not leave a non-cooperative worker ahead of the
+      // new job. The worker parser starts a fresh worker for the replacement.
+      this.parser.terminateJob?.(active.id);
+    }
     this.activeJob = undefined;
     return active.id;
   }
@@ -161,7 +256,7 @@ export class FileJobController<T> {
         return;
       }
 
-      const result = await this.parser(new Uint8Array(sourceBuffer), file, signal);
+      const result = await this.parser(new Uint8Array(sourceBuffer), file, signal, jobId);
       if (!this.isActive(jobId)) {
         if (record?.terminationTimer !== undefined) clearTimeout(record.terminationTimer);
         return;

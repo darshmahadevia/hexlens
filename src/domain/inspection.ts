@@ -36,7 +36,7 @@ export const GENERIC_DIAGNOSTIC_CODES = Object.freeze({
   unsupportedFormat: 'unsupported_format',
   limitReached: 'limit_reached',
   parseAborted: 'parse_aborted',
-  extensionMismatch: 'extension_mismatch',
+  formatNameMismatch: 'extension_mismatch',
 } as const);
 
 export const GENERIC_DIAGNOSTIC_SPAN_POLICY: Readonly<Record<string, string>> = Object.freeze({
@@ -53,7 +53,7 @@ export interface ByteSpan {
 
 export type DiagnosticSeverity = 'note' | 'warning' | 'error';
 
-export type FieldValueStatus = 'interpreted' | 'opaque' | 'invalid';
+export type FieldValueStatus = 'interpreted' | 'absent' | 'opaque' | 'invalid';
 
 export interface Diagnostic {
   code: string;
@@ -72,7 +72,7 @@ export interface Field {
   representation: string;
   endianness?: 'big-endian' | 'little-endian' | 'n/a';
   explanation: string;
-  /** Opaque or invalid values remain visible without being presented as decoded. */
+  /** Absent, opaque, and invalid values remain visible without being guessed as interpreted. */
   status?: FieldValueStatus;
   payloadId?: string;
 }
@@ -213,7 +213,7 @@ export function createRawInspection(
     diagnostics.push({
       code: GENERIC_DIAGNOSTIC_CODES.unsupportedFormat,
       severity: 'error',
-      message: message ?? 'The file does not match a supported Format. The raw bytes remain available without semantic parsing.',
+      message: message ?? 'The file does not have a PNG signature or RIFF/WAVE signature. Raw bytes remain available without semantic parsing.',
       span: { offset: 0, length: Math.min(bytes.length, 8) },
     });
   } else if (status === 'limit-reached') {
