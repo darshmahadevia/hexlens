@@ -162,8 +162,12 @@ h1 { max-width: 12ch; margin: 36px 0 22px; font-size: clamp(3.2rem, 6vw, 6rem); 
 .diagnostics { position: relative; z-index: 1; margin: 0 clamp(30px, 4.5vw, 72px); padding: 14px 0 0; }
 .diagnostics-heading { display: flex; align-items: center; gap: 12px; color: var(--oxide-dark); font: 0.68rem var(--mono); letter-spacing: 0.08em; text-transform: uppercase; }
 .diagnostics ul { display: grid; gap: 8px; margin: 10px 0 0; padding: 0 0 15px; list-style: none; border-bottom: 1px solid rgba(29, 40, 38, 0.22); }
-.diagnostics li { display: grid; grid-template-columns: max-content minmax(0, 1fr) max-content; gap: 12px; align-items: baseline; color: var(--ink-soft); font-size: 0.78rem; line-height: 1.4; }
-.diagnostics code, .diagnostics small { color: var(--oxide-dark); font: 0.65rem var(--mono); letter-spacing: 0.03em; }
+.diagnostics li { display: grid; grid-template-columns: max-content max-content minmax(0, 1fr) max-content; gap: 12px; align-items: baseline; color: var(--ink-soft); font-size: 0.78rem; line-height: 1.4; }
+.diagnostics code, .diagnostics small, .diagnostic-severity { color: var(--oxide-dark); font: 0.65rem var(--mono); letter-spacing: 0.03em; }
+.diagnostic-severity { text-transform: uppercase; }
+.diagnostic-note { color: var(--verdigris); }
+.diagnostic-warning { color: var(--oxide-dark); }
+.diagnostic-error { color: var(--oxide); }
 .diagnostics small { color: var(--ink-soft); }
 .inspector-layout { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(180px, 0.78fr) minmax(390px, 1.7fr) minmax(270px, 1.1fr); min-height: 620px; }
 .structure-panel, .byte-panel, .field-panel { min-width: 0; padding: 30px clamp(20px, 2.6vw, 40px) 36px; }

@@ -12,6 +12,7 @@ const mount = app;
 
 const sample = sampleInspection();
 const MAX_LOCAL_FILE_BYTES = 25 * 1024 * 1024;
+const PNG_TYPED_CHUNKS = new Set(['IHDR', 'PLTE', 'IDAT', 'IEND', 'tEXt', 'iTXt', 'gAMA', 'sRGB', 'tRNS', 'pHYs']);
 
 type View = 'landing' | 'inspect';
 type SessionKind = 'sample' | 'local';
@@ -32,6 +33,7 @@ interface InspectionSession {
   kind: SessionKind;
   inspection: Inspection;
   previewUrl?: string;
+  previewFailed?: boolean;
 }
 
 const currentView = (): View => window.location.pathname === '/inspect' ? 'inspect' : 'landing';
@@ -69,7 +71,11 @@ function revokePreview(target: InspectionSession | null): void {
 }
 
 function ensurePreview(target: InspectionSession): void {
-  if (target.kind !== 'local' || target.previewUrl || typeof URL.createObjectURL !== 'function') return;
+  if (target.kind !== 'local' || target.previewUrl || target.previewFailed) return;
+  if (typeof URL.createObjectURL !== 'function') {
+    target.previewFailed = true;
+    return;
+  }
   const copy = new Uint8Array(target.inspection.bytes);
   target.previewUrl = URL.createObjectURL(new Blob([copy.buffer], { type: 'image/png' }));
 }
@@ -113,7 +119,11 @@ function renderByteStrip(inspection: Inspection, selected?: ByteSpan, interactiv
 function renderStructureLabels(inspection: Inspection, selected?: ByteSpan, interactive = false): string {
   return inspection.structures.map((structure) => {
     const active = selected ? spanIntersects(structure.span, selected) : false;
-    const tag = structure.kind === 'payload' ? 'Payload' : structure.kind === 'header' ? 'Header' : 'Chunk';
+    const tag = (structure.type !== undefined && !PNG_TYPED_CHUNKS.has(structure.type))
+      ? 'Unknown chunk'
+      : structure.kind === 'payload'
+        ? 'Payload'
+        : structure.kind === 'header' ? 'Header' : 'Chunk';
     const content = `<span class="structure-index">${spanLabel(structure.span)}</span><span class="structure-copy"><strong>${escapeHtml(structure.label)}</strong><small>${tag} · ${structure.span.length} bytes</small></span>`;
     return interactive
       ? `<button class="structure-row${active ? ' is-selected' : ''}" type="button" data-structure-id="${escapeHtml(structure.id)}" aria-pressed="${active}">${content}</button>`
@@ -146,7 +156,7 @@ function renderStatus(inspection?: Inspection): string {
 
 function renderDiagnostics(inspection: Inspection): string {
   if (!inspection.diagnostics.length) return '';
-  const items = inspection.diagnostics.map((diagnostic) => `<li><code>${escapeHtml(diagnostic.code)}</code><span>${escapeHtml(diagnostic.message)}</span><small>${spanLabel(diagnostic.span)}</small></li>`).join('');
+  const items = inspection.diagnostics.map((diagnostic) => `<li><strong class="diagnostic-severity diagnostic-${diagnostic.severity}">${escapeHtml(diagnostic.severity)}</strong><code>${escapeHtml(diagnostic.code)}</code><span>${escapeHtml(diagnostic.message)}</span><small>${spanLabel(diagnostic.span)}</small></li>`).join('');
   return `<section class="diagnostics" aria-labelledby="diagnostics-heading" data-testid="diagnostics"><div class="diagnostics-heading"><span id="diagnostics-heading">Diagnostics</span><span class="panel-rule" aria-hidden="true"></span></div><ul>${items}</ul></section>`;
 }
 
@@ -233,8 +243,8 @@ function renderInspector(target: InspectionSession): void {
   const identity = target.kind === 'local'
     ? `<strong class="file-name" title="${escapeHtml(sourceName)}" aria-label="Local filename: ${escapeHtml(sourceName)}">${escapeHtml(sourceName)}</strong>`
     : '<strong>hexlens-sample.png</strong>';
-  const preview = target.previewUrl
-    ? `<img src="${escapeHtml(target.previewUrl)}" alt="The local PNG rendered as the original file" />`
+  const preview = target.previewUrl && !target.previewFailed
+    ? `<img data-source-preview src="${escapeHtml(target.previewUrl)}" alt="The local PNG rendered as the original file" />`
     : '<p class="preview-unavailable">Original-file rendering unavailable; the Inspection remains usable.</p>';
   mount.innerHTML = `
     <main class="app-shell inspector-shell">
@@ -292,6 +302,12 @@ function renderInspector(target: InspectionSession): void {
       }
     });
   });
+  const previewImage = mount.querySelector<HTMLImageElement>('[data-source-preview]');
+  previewImage?.addEventListener('error', () => {
+    if (target.previewFailed) return;
+    target.previewFailed = true;
+    renderInspector(target);
+  }, { once: true });
 }
 
 function renderEmptyInspector(): void {
