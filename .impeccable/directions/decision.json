@@ -1,0 +1,79 @@
+{
+  "title": "Choose the visual world",
+  "question": "The roll assigned The Conservation Workbench. Keep it, take an alternate, or re-roll.",
+  "options": [
+    {
+      "id": "assigned",
+      "label": "The Conservation Workbench",
+      "kicker": "THE ROLL",
+      "lineage": "museum conservation worksheets and accession records",
+      "thesis": "A careful paper-and-ink desk where every claim is pinned to the bytes that support it.",
+      "palette": ["#f2ead8", "#1d2826", "#b9573d", "#39756b"],
+      "materials": ["conservation paper", "registration ink", "oxide pencil"],
+      "viewport": "A live PNG specimen sheet with its byte strip and Structure labels visible before the first click.",
+      "risk": "Feels precious if the bytes recede; the sample must stay large and immediately usable.",
+      "raised": [
+        {"from": "scientific-notation-particle-detector-event-display", "raise": "Focus follows a single active span while the surrounding context quiets."},
+        {"from": "broadcast-programming-teletext-service", "raise": "Structure labels use a strict index rhythm without retro phosphor color."},
+        {"from": "archives-microfiche-reader", "raise": "The page commits to one paper-and-ink environment instead of generic floating panels."}
+      ],
+      "comp": ".impeccable/mocks/decision/assigned.png"
+    },
+    {
+      "id": "model-pick",
+      "label": "The Annotated Field Plate",
+      "kicker": "IMPECCABLE'S PICK",
+      "lineage": "natural-history plates and specimen callouts",
+      "thesis": "The original file presented as a specimen whose parts can be named without losing the whole.",
+      "palette": ["#ede7d7", "#233a34", "#a94a3c"],
+      "materials": ["rag paper", "ink wash", "index marks"],
+      "viewport": "A specimen sheet with a large sample action and callouts that cross into the live tracer.",
+      "risk": "The familiar field-guide metaphor can outrun the parser if labels are decorative instead of exact.",
+      "comp": ".impeccable/mocks/decision/model-pick.png"
+    },
+    {
+      "id": "challenger-particle",
+      "label": "Event Display",
+      "verdict": "competitive",
+      "lineage": "scientific collider event displays",
+      "thesis": "Selection becomes one bright track through a quiet field of surrounding evidence.",
+      "palette": ["#111b22", "#b3d4cd", "#e4b24b", "#c55240"],
+      "materials": ["detector rings", "tabular figures", "signal tracks"],
+      "viewport": "A byte track arcs from signature to IHDR while exact offsets sit at the edge of the frame.",
+      "case": "Competitive: it raises Selection clarity, but the conservation world identifies HexLens more clearly.",
+      "risk": "Can look like a science demo instead of a readable inspection tool.",
+      "comp": ".impeccable/mocks/decision/challenger-particle.png"
+    },
+    {
+      "id": "challenger-teletext",
+      "label": "Strict Index Service",
+      "verdict": "declined",
+      "lineage": "broadcast teletext indexes",
+      "materials": ["block rhythm", "phosphor rules"],
+      "case": "Declined: it keeps the index discipline, but loses product clarity when the novelty becomes the point.",
+      "kept": "Strict, repeatable label rhythm for Structures and offsets."
+    },
+    {
+      "id": "challenger-microfiche",
+      "label": "Microfiche Reader",
+      "verdict": "declined",
+      "lineage": "library microfiche stations",
+      "materials": ["backlit glass", "film grain"],
+      "case": "Declined: the environmental commitment is useful, but archival retrieval does not explain the product.",
+      "kept": "A full field around the work, with no decorative dashboard chrome."
+    }
+  ],
+  "reroll": {"registers": ["safer", "bolder"]},
+  "buildPath": {"value": "comp", "toggle": true},
+  "canon": true,
+  "canonCard": {
+    "label": "The category standard",
+    "thesis": "A clean developer dashboard with a file preview, tree, grid, and inspector.",
+    "palette": ["#ffffff", "#111827", "#2563eb"],
+    "materials": ["neutral panels", "blue action"],
+    "viewport": "A conventional three-pane inspector with a standard marketing hero.",
+    "risk": "Easy to scan, but forgettable and visually interchangeable.",
+    "comp": ".impeccable/mocks/decision/canon.png"
+  },
+  "steer": true
+}

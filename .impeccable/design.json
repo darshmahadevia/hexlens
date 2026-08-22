@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-22T00:50:20Z",
+  "title": "Design System: HexLens",
+  "extensions": {
+    "colorMeta": {
+      "paper": { "role": "neutral", "displayName": "Conservation Paper", "canonical": "#f2ead8", "tonalRamp": ["#f8f1e2", "#f2ead8", "#e6dac1"] },
+      "paper-deep": { "role": "neutral", "displayName": "Deep Paper", "canonical": "#e6dac1", "tonalRamp": ["#f2ead8", "#e6dac1", "#d5c9b2"] },
+      "paper-quiet": { "role": "neutral", "displayName": "Quiet Paper", "canonical": "#ece2ce", "tonalRamp": ["#f2ead8", "#ece2ce", "#e6dac1"] },
+      "outer-field": { "role": "neutral", "displayName": "Outer Field", "canonical": "#d5c9b2", "tonalRamp": ["#ece2ce", "#d5c9b2", "#c6b89f"] },
+      "ink": { "role": "neutral", "displayName": "Charcoal Ink", "canonical": "#1d2826", "tonalRamp": ["#53605b", "#1d2826", "#101715"] },
+      "ink-soft": { "role": "neutral", "displayName": "Soft Ink", "canonical": "#53605b", "tonalRamp": ["#84918a", "#53605b", "#1d2826"] },
+      "rule": { "role": "neutral", "displayName": "Registration Rule", "canonical": "rgba(29, 40, 38, 0.42)", "tonalRamp": ["rgba(29, 40, 38, 0.14)", "rgba(29, 40, 38, 0.42)", "#1d2826"] },
+      "oxide": { "role": "primary", "displayName": "Oxide", "canonical": "#a94f39", "tonalRamp": ["#d28b77", "#a94f39", "#813523"] },
+      "oxide-dark": { "role": "primary", "displayName": "Oxide Dark", "canonical": "#813523", "tonalRamp": ["#a94f39", "#813523", "#5e2418"] },
+      "verdigris": { "role": "secondary", "displayName": "Verdigris", "canonical": "#39756b", "tonalRamp": ["#72a39a", "#39756b", "#24534d"] },
+      "focus": { "role": "secondary", "displayName": "Focus Teal", "canonical": "#155e55", "tonalRamp": ["#39756b", "#155e55", "#0a3832"] },
+      "paper-light": { "role": "neutral", "displayName": "Paper Light", "canonical": "#fffaf0", "tonalRamp": ["#fffdf8", "#fffaf0", "#f2ead8"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Editorial Display", "purpose": "Landing promise and the largest empty-state headings." },
+      "body": { "displayName": "Editorial Body", "purpose": "Explanatory copy and Field notes." },
+      "label": { "displayName": "Measured Mono", "purpose": "Offsets, byte values, labels, metadata, status, and controls." }
+    },
+    "shadows": [],
+    "motion": [
+      { "name": "control-hover", "value": "180ms ease-out", "purpose": "Small color and 2px translation response on interactive controls." },
+      { "name": "reduced-motion", "value": "0.01ms", "purpose": "Collapse transitions for prefers-reduced-motion users." }
+    ],
+    "breakpoints": [
+      { "name": "wide", "value": "1120px" },
+      { "name": "stack", "value": "900px" },
+      { "name": "narrow", "value": "620px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The single oxide action into the Sample Inspection.",
+      "html": "<button class=\"ds-btn-primary\">TRY THE SAMPLE <span aria-hidden=\"true\">→</span></button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; gap: 18px; min-height: 52px; padding: 13px 24px; border: 1px solid var(--oxide-dark); border-radius: 0; background: var(--oxide); color: var(--paper-light); font: 0.77rem var(--mono); letter-spacing: 0.05em; text-transform: uppercase; transition: background-color 180ms ease-out, color 180ms ease-out, transform 180ms ease-out; } .ds-btn-primary:hover { background: var(--oxide-dark); transform: translateY(-2px); } .ds-btn-primary:focus-visible { outline: 3px solid var(--focus); outline-offset: 4px; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "A quiet later-slice action that remains visible but disabled in the PNG slice.",
+      "html": "<button class=\"ds-btn-secondary\" disabled>OPEN A FILE</button>",
+      "css": ".ds-btn-secondary { min-height: 52px; padding: 13px 24px; border: 1px solid var(--ink); border-radius: 0; background: transparent; color: var(--ink); font: 0.77rem var(--mono); letter-spacing: 0.05em; text-transform: uppercase; } .ds-btn-secondary:disabled { border-color: rgba(29, 40, 38, 0.45); color: var(--ink-soft); cursor: not-allowed; opacity: 0.82; } .ds-btn-secondary:focus-visible { outline: 3px solid var(--focus); outline-offset: 4px; }"
+    },
+    {
+      "name": "Sheet Frame",
+      "kind": "card",
+      "refersTo": "sheet",
+      "description": "A single paper workbench containing a coherent route.",
+      "html": "<section class=\"ds-sheet\"><h2>Sample: PNG</h2><p>Measured content lives on one sheet.</p></section>",
+      "css": ".ds-sheet { position: relative; overflow: hidden; border: 1px solid rgba(29, 40, 38, 0.42); border-radius: 0; background-color: var(--paper); color: var(--ink); } .ds-sheet::before { content: \"\"; position: absolute; inset: 14px; pointer-events: none; border: 1px solid rgba(29, 40, 38, 0.26); }"
+    },
+    {
+      "name": "Structure Row",
+      "kind": "custom",
+      "refersTo": "selection-span",
+      "description": "A source-ordered semantic item tied to an exact Byte span.",
+      "html": "<button class=\"ds-structure-row\"><span>08–20</span><strong>IHDR · image header</strong></button>",
+      "css": ".ds-structure-row { display: grid; grid-template-columns: 53px 1fr; gap: 10px; width: 100%; padding: 13px 10px 13px 0; border: 0; border-top: 1px solid rgba(29, 40, 38, 0.42); border-left: 1px solid transparent; border-radius: 0; background: transparent; color: var(--ink); text-align: left; font: 0.75rem var(--mono); } .ds-structure-row:hover { border-left-color: var(--verdigris); } .ds-structure-row[aria-pressed=\"true\"] { border-left-color: var(--oxide); background: rgba(169, 79, 57, 0.08); }"
+    },
+    {
+      "name": "Selected Byte Span",
+      "kind": "custom",
+      "refersTo": "selection-span",
+      "description": "The raw bytes remain primary and the exact selected range gets an oxide bracket.",
+      "html": "<div class=\"ds-byte-cells\"><span class=\"ds-byte is-selected\">89</span><span class=\"ds-bracket\" aria-hidden=\"true\"></span></div>",
+      "css": ".ds-byte-cells { position: relative; display: grid; grid-template-columns: repeat(16, 1fr); border-top: 1px solid var(--ink); border-bottom: 1px solid var(--ink); } .ds-byte { padding: 13px 3px; border-right: 1px solid rgba(29, 40, 38, 0.34); color: var(--ink); font: 0.74rem var(--mono); text-align: center; } .ds-byte.is-selected { background: var(--oxide); color: var(--paper-light); } .ds-bracket { position: absolute; top: -8px; left: 0; width: 12.5%; height: calc(100% + 15px); border-top: 2px solid var(--oxide); border-bottom: 1px solid var(--oxide); pointer-events: none; }"
+    },
+    {
+      "name": "Field Note",
+      "kind": "custom",
+      "refersTo": "sheet",
+      "description": "The selected Field explains its span, bytes, value, and representation beside the grid.",
+      "html": "<aside class=\"ds-field-note\"><small>SELECTED FIELD</small><h3>Width</h3><p>Image width in pixels.</p><dl><dt>BYTE SPAN</dt><dd>10–13 · 4 bytes</dd></dl></aside>",
+      "css": ".ds-field-note { border-top: 1px solid var(--ink); padding-top: 18px; color: var(--ink); } .ds-field-note small, .ds-field-note dt { color: var(--oxide-dark); font: 0.65rem var(--mono); letter-spacing: 0.08em; text-transform: uppercase; } .ds-field-note h3 { margin: 8px 0; font: 500 1.5rem/1.1 var(--serif, Georgia); } .ds-field-note p { color: var(--ink-soft); font: 0.9rem/1.45 var(--serif, Georgia); } .ds-field-note dl { display: grid; grid-template-columns: 87px 1fr; gap: 8px; } .ds-field-note dd { margin: 0; font: 0.83rem var(--serif, Georgia); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Conservation Workbench",
+    "overview": "HexLens is a flat paper-and-ink workbench for connecting raw bytes to the Structures and Fields they support. Serif explanation and monospace measurement stay in separate jobs; thin rules and sparse oxide or verdigris accents carry state without dashboard chrome.",
+    "keyCharacteristics": ["Warm authored paper grain", "Editorial serif plus measured mono", "Hairline registration rules", "Exact selected-span brackets"],
+    "rules": [
+      { "name": "The Rare Accent Rule", "body": "Oxide and verdigris mark meaning or state; they do not decorate every surface.", "section": "colors" },
+      { "name": "The Two-Voice Rule", "body": "Serif carries human explanation while monospace carries measurements and state.", "section": "typography" },
+      { "name": "The Flat Workbench Rule", "body": "Use material, rules, and state contrast for depth; do not stack floating cards.", "section": "elevation" }
+    ],
+    "dos": ["Do keep the real Sample and exact Byte span visible early.", "Do preserve the warm paper grain and registration language.", "Do label the Source preview as original-file rendering."],
+    "donts": ["Don't turn the workbench into metric tiles or terminal chrome.", "Don't add gradients or box shadows.", "Don't decode opaque Payload content in the visual layer."]
+  }
+}
