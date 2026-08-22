@@ -1,0 +1,44 @@
+{
+  "recordedAt": "2026-08-22T02:38:00Z",
+  "recordedBeforeFinalVerification": true,
+  "limits": {
+    "maxBytes": {
+      "value": 26214400,
+      "label": "25 MiB",
+      "decision": "affirm",
+      "reason": "The reader caps an over-limit local read at maxBytes + 1 and the parser returns an explicit limit-reached Inspection."
+    },
+    "maxStructures": {
+      "value": 50000,
+      "decision": "replace",
+      "previousValue": 100000,
+      "reason": "A 50,000-Structure PNG/WAV stress run stayed below the 128 MiB semantic-heap budget; the 100,000 value did not leave the same memory margin."
+    },
+    "maxDiagnostics": {
+      "value": 1000,
+      "decision": "affirm",
+      "reason": "Both parsers stop at exactly 1,000 Diagnostics and return limit-reached rather than silently continuing."
+    },
+    "slowNoticeMs": {
+      "value": 2000,
+      "decision": "affirm",
+      "reason": "A controller profile observes the slow state at roughly two seconds while keeping Abort opening available."
+    },
+    "cancellationDeadlineMs": {
+      "value": 250,
+      "decision": "affirm",
+      "reason": "The controller publishes its bounded termination callback about 250 ms after cooperative cancellation."
+    }
+  },
+  "verificationBudgets": {
+    "representativeParseMs": 50,
+    "metadataParseMs": 100,
+    "adversarialCapParseMs": 500,
+    "diagnosticCapParseMs": 250,
+    "sizeCapParseMs": 100,
+    "semanticHeapGrowthMiB": 128,
+    "cancellationWindowMs": 300,
+    "virtualizedRowsMounted": 12,
+    "seriousOrCriticalA11yViolations": 0
+  }
+}

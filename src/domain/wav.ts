@@ -19,7 +19,7 @@ export const WAVE_FORMAT_PCM = 0x0001;
 export const WAVE_FORMAT_IEEE_FLOAT = 0x0003;
 export const WAVE_FORMAT_EXTENSIBLE = 0xfffe;
 
-/** The same provisional bounds apply to PNG and WAV inspections. */
+/** The same release bounds apply to PNG and WAV inspections. */
 export const WAV_LIMITS = Object.freeze({
   maxBytes: INSPECTION_LIMITS.maxBytes,
   maxStructures: INSPECTION_LIMITS.maxStructures,

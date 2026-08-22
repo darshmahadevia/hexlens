@@ -56,7 +56,7 @@ test('an already-aborted PNG parser returns a distinct aborted status and span',
   assert.ok(inspection.diagnostics.every((item) => item.span.offset <= bytes.length));
 });
 
-test('the provisional WAV byte cap returns an explicit limit result', () => {
+test('the release WAV byte cap returns an explicit limit result', () => {
   const bytes = new Uint8Array(WAV_LIMITS.maxBytes + 1);
   bytes.set(RIFF_SIGNATURE, 0);
   bytes.set([0x00, 0x00, 0x00, 0x00], 4);

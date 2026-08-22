@@ -14,7 +14,7 @@ import {
 
 export const PNG_SIGNATURE = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
 
-/** The provisional safety budget from the product contract. */
+/** The release safety budget affirmed by the #12 profiling run. */
 export const PNG_LIMITS = Object.freeze({
   maxBytes: INSPECTION_LIMITS.maxBytes,
   maxStructures: INSPECTION_LIMITS.maxStructures,

@@ -1,10 +1,10 @@
-# Impeccable Finish Review — degraded equivalent
+# Impeccable Finish Review — issue #12 final audit
 
 disposition: ship
 
 ## persistence
 
-pass — `PRODUCT.md`, the landing surface brief, the direction contract with seed key `0f5180d5`, the approved fallback comp at `.impeccable/mocks/decision/assigned.png`, and `.impeccable/review/hero-repro.png` are present. Required full-page `desktop.png` and `mobile.png` captures exist, with matching landing and inspector captures at desktop and narrow widths. `DESIGN.md` records the durable landing ledger extension.
+pass — `PRODUCT.md`, the landing surface brief, the direction contract with seed key `0f5180d5`, the approved fallback comp at `.impeccable/mocks/decision/assigned.png`, and the required route artifacts are present. One bounded browser round produced valid 1280×720 desktop and 390×844 narrow landing viewport captures plus full-page desktop and narrow inspector, empty, and failure captures. The browser compositor duplicated the landing continuation when asked for a full-page capture, so only the valid viewport captures are used for the landing pair; that limitation is recorded in `docs/release/evidence.md`. `DESIGN.md` records the durable landing and virtual-grid behavior.
 
 ## fidelity
 
@@ -16,7 +16,7 @@ reached — the build uses the world's paper grain, registration marks, hairline
 
 ## material_fixes
 
-clear — no material fidelity, contract, truth, or craft-floor fixes remain.
+clear — no material fidelity, contract, truth, or craft-floor fixes remain. The only evidence limitation is capture compositing on the landing full-page request and the documented lack of a physical VoiceOver/NVDA session; neither changes the shipped UI.
 
 ## keep
 

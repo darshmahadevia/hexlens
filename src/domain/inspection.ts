@@ -22,10 +22,10 @@ export type InspectionTermination =
   | 'aborted'
   | 'application-error';
 
-/** Provisional values from the product safety contract. */
+/** Release safety budget affirmed by the #12 profiling run. */
 export const INSPECTION_LIMITS = Object.freeze({
   maxBytes: 25 * 1024 * 1024,
-  maxStructures: 100_000,
+  maxStructures: 50_000,
   maxDiagnostics: 1_000,
   slowNoticeMs: 2_000,
   cancellationDeadlineMs: 250,
