@@ -55,7 +55,11 @@ interface InspectionSession {
   kind: SessionKind;
   inspection: Inspection;
   previewUrl?: string;
+  selection?: ByteSpan;
+  narrowTab?: NarrowTab;
 }
+
+type NarrowTab = 'structures' | 'bytes' | 'fields';
 
 const currentView = (): View => window.location.pathname === '/inspect' ? 'inspect' : 'landing';
 let view: View = currentView();
@@ -65,6 +69,11 @@ let dragDepth = 0;
 let enumerateRawBytes = false;
 let selectionAnnouncementTimer: ReturnType<typeof setTimeout> | undefined;
 let selectionAnnouncementSequence = 0;
+let lastNarrowViewport = isNarrowViewport();
+
+function isNarrowViewport(): boolean {
+  return typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 620px)').matches;
+}
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character] ?? character);
@@ -117,6 +126,7 @@ function revokePreview(target: InspectionSession | null): void {
 }
 
 function renderEmptyInspector(): void {
+  const narrow = isNarrowViewport();
   mount.innerHTML = `
     <main class="app-shell inspector-shell">
       <section class="sheet-frame inspector-sheet empty-inspector" aria-labelledby="inspector-title" data-drop-target="inspector">
@@ -125,10 +135,10 @@ function renderEmptyInspector(): void {
         <header class="inspector-toolbar" aria-label="Inspection toolbar">
           <a href="/" class="back-link">← Back to landing</a>
           <div class="toolbar-title"><span class="wordmark wordmark-small">HexLens</span><span class="toolbar-divider" aria-hidden="true"></span><h1 id="inspector-title">Open an Inspection</h1></div>
-          <div class="file-identity"><strong>No file selected</strong><span>Local PNG or WAV</span></div>
+          <div class="file-identity"><strong>No file selected</strong><span>${narrow ? 'Bundled PNG or WAV Sample' : 'Local PNG or WAV'}</span></div>
         </header>
         ${renderStatus()}
-        <div class="empty-inspector-content"><span class="plate-mark">One file, one Inspection</span><h2>Bring a PNG or WAV to the workbench.</h2><p>Choose one local PNG or WAV, or drop it here. HexLens checks the bytes on this device and keeps the current file in memory only.</p>${renderFileIngress()}<p class="drop-hint">Drop one PNG or WAV file · directories and multiple files are not accepted.</p>${renderNotice()}</div>
+        <div class="empty-inspector-content"><span class="plate-mark">${narrow ? 'Sample Inspection' : 'One file, one Inspection'}</span><h2>${narrow ? 'Choose a Sample to begin.' : 'Bring a PNG or WAV to the workbench.'}</h2><p>${narrow ? 'Phone view is reserved for the bundled PNG and WAV Samples. Choose one to explore its Structures, bytes, and Fields.' : 'Choose one local PNG or WAV, or drop it here. HexLens checks the bytes on this device and keeps the current file in memory only.'}</p>${narrow ? `<div class="sample-links" aria-label="Sample files"><a class="button button-primary" href="/inspect?sample=png">Open PNG Sample</a><a class="button button-secondary" href="/inspect?sample=wav">Open WAV Sample</a></div>` : `${renderFileIngress()}<p class="drop-hint">Drop one PNG or WAV file · directories and multiple files are not accepted.</p>`}${renderNotice()}</div>
       </section>
     </main>
   `;
@@ -172,6 +182,7 @@ const fileJobs = new FileJobController<Inspection>(undefined, async (bytes, file
 });
 
 function startFileJob(file: File, origin: View): void {
+  if (isNarrowViewport()) return;
   if (file.size > MAX_LOCAL_FILE_BYTES) {
     setNotice('error', rejectionMessage('limit_reached'), origin);
     return;
@@ -253,6 +264,7 @@ function classifyDrop(dataTransfer: DataTransfer | null): DropSelection {
 }
 
 function handleDrop(event: DragEvent): void {
+  if (isNarrowViewport()) return;
   event.preventDefault();
   dragDepth = 0;
   mount.classList.remove('is-drag-active');
@@ -345,6 +357,7 @@ function renderStructureLabels(inspection: Inspection, selection?: ByteSpan, int
 }
 
 function renderLanding(): void {
+  const narrow = isNarrowViewport();
   mount.innerHTML = `
     <main class="app-shell landing-shell">
       <section class="sheet-frame landing-sheet" aria-labelledby="landing-title" data-drop-target="landing">
@@ -364,15 +377,15 @@ function renderLanding(): void {
           <div class="landing-copy">
             <h1 id="landing-title"><span>Read the file.</span><span>See the structure.</span></h1>
             <span class="short-rule" aria-hidden="true"></span>
-            <p class="lead-copy">HexLens opens a binary file on your machine and ties its named Structures to the bytes that form them.</p>
+            <p class="lead-copy">${narrow ? 'HexLens ties each bundled Sample to the named Structures and bytes that form it.' : 'HexLens opens a binary file on your machine and ties its named Structures to the bytes that form them.'}</p>
             <p class="support-copy">No uploads. No guesswork.<br />Just bytes, offsets, and meaning.</p>
             <div class="landing-actions">
               <a class="button button-primary" href="/inspect?sample=png" data-testid="try-sample">Try the sample <span aria-hidden="true">→</span></a>
-              ${renderFileIngress()}
+              ${narrow ? '' : renderFileIngress()}
             </div>
-            <p class="drop-hint" data-testid="drop-hint">Or drop one PNG or WAV file onto this sheet.</p>
+            ${narrow ? '<p class="sample-only-note">Phone view · open a bundled PNG or WAV Sample.</p>' : '<p class="drop-hint" data-testid="drop-hint">Or drop one PNG or WAV file onto this sheet.</p>'}
             ${renderNotice()}
-            <p class="local-note"><span class="lock-mark" aria-hidden="true"><span></span></span><span><strong>100% local.</strong><br />Your files never leave your machine.</span></p>
+            <p class="local-note"><span class="lock-mark" aria-hidden="true"><span></span></span><span><strong>100% local.</strong><br />${narrow ? 'Samples stay in your browser.' : 'Your files never leave your machine.'}</span></p>
             ${operation.phase !== 'ready' ? `<p class="landing-operation" role="status" aria-live="polite">${operationLabel()}</p>` : ''}
           </div>
 
@@ -655,10 +668,85 @@ function renderFieldInspector(inspection: Inspection, resolution: SelectionResol
   return `<div class="field-inspector" id="field-inspector"><div class="panel-heading"><span id="field-inspector-heading">Field inspector</span><span class="panel-rule" aria-hidden="true"></span></div>${heading}<div class="field-list" aria-labelledby="field-inspector-heading">${fields}</div>${renderSemanticDetail(inspection, resolution)}</div>`;
 }
 
-function renderInspector(target: InspectionSession, requestedSelection: ByteSpan = initialSelection(target.inspection), focusTarget?: GridFocusTarget, gridScrollTop?: number, selectionAnchor?: number): void {
+function renderNarrowTabs(activeTab: NarrowTab): string {
+  const tabs: Array<{ id: NarrowTab; label: string }> = [
+    { id: 'structures', label: 'Structures' },
+    { id: 'bytes', label: 'Bytes' },
+    { id: 'fields', label: 'Fields' },
+  ];
+  return `<div class="narrow-inspector-tabs" role="tablist" aria-label="Sample views" data-testid="narrow-tabs">${tabs.map((tab) => `<button class="narrow-inspector-tab${tab.id === activeTab ? ' is-active' : ''}" type="button" role="tab" id="narrow-tab-${tab.id}" data-testid="narrow-tab-${tab.id}" data-narrow-tab="${tab.id}" aria-controls="narrow-panel-${tab.id}" aria-selected="${tab.id === activeTab}" tabindex="${tab.id === activeTab ? '0' : '-1'}">${tab.label}</button>`).join('')}</div>`;
+}
+
+function renderNarrowSelectionSummary(
+  inspection: Inspection,
+  selection: ByteSpan,
+  selectedSummary: string,
+  focusSemanticAction: string,
+): string {
+  return `<div class="selection-summary narrow-selection-summary" id="selection-summary" data-testid="selection-summary" role="region" aria-labelledby="selection-summary-heading"><span class="summary-mark" aria-hidden="true"></span><span><span id="selection-summary-heading" class="sr-only">Selected span summary</span>${escapeHtml(selectedSummary)} <span class="summary-secondary">hex ${formatOffset(selection.offset, inspection.bytes.length)}–${formatOffset(Math.max(selection.offset, selection.offset + selection.length - 1), inspection.bytes.length)} · decimal ${formatDecimalOffset(selection.offset)}</span></span><button class="inline-copy" type="button" data-copy-kind="selection">Copy selected bytes</button>${focusSemanticAction}</div><div class="selection-announcement sr-only" aria-live="polite" aria-atomic="true" data-testid="selection-announcement"></div><div class="copy-feedback" data-testid="copy-feedback" role="status" aria-live="polite"></div>`;
+}
+
+function renderNarrowInspectorLayout(
+  inspection: Inspection,
+  selection: ByteSpan,
+  resolution: SelectionResolution,
+  activeTab: NarrowTab,
+  previewUrl?: string,
+): string {
+  const displayFormat = formatLabel(inspection.format);
+  const hidden = (tab: NarrowTab): string => tab === activeTab ? '' : ' hidden';
+  return `${renderNarrowTabs(activeTab)}
+    <div class="inspector-layout narrow-inspector-layout" data-active-tab="${activeTab}">
+      <aside class="narrow-panel structure-panel${activeTab === 'structures' ? ' is-active' : ''}" id="narrow-panel-structures" data-testid="narrow-panel-structures" data-narrow-panel="structures" role="tabpanel" aria-labelledby="narrow-tab-structures"${hidden('structures')}>
+        <div class="panel-heading"><span id="narrow-structure-heading">Structures</span><span class="panel-rule" aria-hidden="true"></span></div>
+        <p class="panel-intro">Named parts in source-file order. Tap a Structure to follow its Byte span.</p>
+        <nav class="structure-list" aria-label="${displayFormat} Structures" data-semantic-list="structures">${renderStructureLabels(inspection, selection, true)}</nav>
+        <div class="structure-legend"><span class="legend-mark legend-structure" aria-hidden="true"></span><span>Structure boundary</span><span class="legend-mark legend-selection" aria-hidden="true"></span><span>Selected Byte span</span><span class="legend-mark legend-unmapped" aria-hidden="true"></span><span>Unmapped span</span></div>
+      </aside>
+      <section class="narrow-panel byte-panel${activeTab === 'bytes' ? ' is-active' : ''}" id="narrow-panel-bytes" data-testid="narrow-panel-bytes" data-narrow-panel="bytes" role="tabpanel" aria-labelledby="narrow-tab-bytes"${hidden('bytes')}>
+        <div class="panel-heading"><span id="narrow-bytes-heading">Bytes</span><span class="panel-rule" aria-hidden="true"></span><span class="panel-meta">16 bytes / row</span></div>
+        <p class="panel-intro" id="narrow-byte-grid-help">Tap a byte to preserve the exact Selection. Scroll inside the byte grid when a row needs more room.</p>
+        <form class="goto-form" data-testid="goto-form"><label for="goto-offset">Go to offset</label><select id="goto-mode" aria-label="Offset notation"><option value="hex">Hexadecimal</option><option value="decimal">Decimal (explicit)</option></select><input id="goto-offset" data-testid="offset-input" name="offset" inputmode="text" autocomplete="off" placeholder="e.g. 0030" aria-describedby="offset-help offset-error" /><button class="button button-secondary" type="submit">Go</button><span id="offset-help" class="sr-only">Hexadecimal is the default. Choose Decimal explicitly for base ten.</span></form><p class="offset-error" id="offset-error" data-testid="offset-error" role="alert" hidden></p>
+        <div class="byte-accessibility"><label class="byte-enumeration"><input type="checkbox" data-testid="enumerate-bytes" ${enumerateRawBytes ? 'checked' : ''} /><span>Enumerate raw bytes with Tab</span></label><span id="raw-byte-help">Off by default; use Go to offset or the focused byte grid.</span></div>
+        <div class="byte-grid" id="byte-grid" data-testid="byte-grid"><div class="byte-grid-header" aria-hidden="true"><span>Offset</span><span>Hex bytes</span><span>ASCII</span></div><div class="byte-grid-viewport" data-grid-viewport role="grid"><div class="byte-grid-spacer" data-grid-spacer></div><div class="byte-grid-rows" data-grid-rows></div></div></div>
+        <div class="ascii-note"><span class="mono">·</span> non-printable bytes use the <span class="mono">·</span> marker; each byte has an accessible value label</div>
+      </section>
+      <aside class="narrow-panel field-panel${activeTab === 'fields' ? ' is-active' : ''}" id="narrow-panel-fields" data-testid="narrow-panel-fields" data-narrow-panel="fields" role="tabpanel" aria-labelledby="narrow-tab-fields"${hidden('fields')}>
+        ${renderFieldInspector(inspection, resolution)}
+        <figure class="source-preview"><figcaption id="narrow-field-heading">Source preview <span>· original-file rendering</span></figcaption>${renderPreview(inspection, displayFormat, previewUrl)}</figure>
+      </aside>
+    </div>`;
+}
+
+function renderPreview(inspection: Inspection, displayFormat: string, previewUrl?: string): string {
+  if (!previewUrl) return '<p class="preview-unavailable">Original-file rendering unavailable; the Inspection remains usable.</p>';
+  return inspection.format === 'wav'
+    ? `<audio controls preload="metadata" src="${escapeHtml(previewUrl)}" aria-label="The WAV rendered as the original file"></audio>`
+    : `<img src="${escapeHtml(previewUrl)}" alt="The ${displayFormat} rendered as the original file" />`;
+}
+
+function activateNarrowTab(target: InspectionSession, nextTab: NarrowTab, focusTab = true): void {
+  target.narrowTab = nextTab;
+  const tabs = Array.from(mount.querySelectorAll<HTMLButtonElement>('[data-narrow-tab]'));
+  tabs.forEach((tab) => {
+    const active = tab.dataset.narrowTab === nextTab;
+    tab.classList.toggle('is-active', active);
+    tab.setAttribute('aria-selected', String(active));
+    tab.tabIndex = active ? 0 : -1;
+  });
+  mount.querySelectorAll<HTMLElement>('[data-narrow-panel]').forEach((panel) => {
+    const active = panel.dataset.narrowPanel === nextTab;
+    panel.hidden = !active;
+    panel.classList.toggle('is-active', active);
+  });
+  if (focusTab) tabs.find((tab) => tab.dataset.narrowTab === nextTab)?.focus({ preventScroll: true });
+}
+
+function renderInspector(target: InspectionSession, requestedSelection?: ByteSpan, focusTarget?: GridFocusTarget, gridScrollTop?: number, selectionAnchor?: number): void {
   const inspection = target.inspection;
   ensurePreview(target);
-  const selection = normalizeSelection(requestedSelection, inspection.bytes.length);
+  const selection = normalizeSelection(requestedSelection ?? target.selection ?? initialSelection(inspection), inspection.bytes.length);
+  target.selection = selection;
   const resolution = resolveSelection(inspection, selection);
   const selectedLabel = resolution.field?.label ?? resolution.structure?.label ?? resolution.unmapped?.label ?? 'Unmapped span';
   const selectedSummary = `Selected ${selectedLabel}, offset ${selection.offset}, length ${selection.length} bytes.`;
@@ -669,11 +757,9 @@ function renderInspector(target: InspectionSession, requestedSelection: ByteSpan
     ? `<button class="inline-focus" type="button" data-focus-semantic="${escapeHtml(semanticTarget)}" data-focus-semantic-kind="${semanticTargetKind}" aria-label="Focus selected ${semanticTargetKind} in the ${semanticTargetKind === 'field' ? 'Field inspector' : 'Structure tree'}">Focus selected ${semanticTargetKind}</button>`
     : '';
   const sourceName = inspection.sourceName || 'Unnamed local file';
-  const preview = target.previewUrl
-    ? inspection.format === 'wav'
-      ? `<audio controls preload="metadata" src="${escapeHtml(target.previewUrl)}" aria-label="The WAV rendered as the original file"></audio>`
-      : `<img src="${escapeHtml(target.previewUrl)}" alt="The ${displayFormat} rendered as the original file" />`
-    : '<p class="preview-unavailable">Original-file rendering unavailable; the Inspection remains usable.</p>';
+  const preview = renderPreview(inspection, displayFormat, target.previewUrl);
+  const narrow = isNarrowViewport();
+  const activeNarrowTab = target.narrowTab ?? 'structures';
   mount.innerHTML = `
     <main class="app-shell inspector-shell">
       <section class="sheet-frame inspector-sheet" aria-labelledby="inspector-title" data-drop-target="inspector">
@@ -685,11 +771,11 @@ function renderInspector(target: InspectionSession, requestedSelection: ByteSpan
           <div class="file-identity"><strong title="${escapeHtml(sourceName)}" aria-label="${target.kind === 'local' ? `Local filename: ${escapeHtml(sourceName)}` : escapeHtml(sourceName)}">${escapeHtml(sourceName)}</strong><span>${inspection.bytes.length.toLocaleString('en-US')} bytes · ${displayFormat}${target.kind === 'local' ? ' · local' : ''}</span></div>
         </header>
         ${renderStatus(inspection)}
-        <div class="inspector-ingress"><div><strong>Open another local file</strong><span>Choose one PNG or WAV file, or drop it anywhere on this workbench.</span></div>${renderFileIngress()}</div>
+        ${narrow ? '<p class="narrow-sample-note">Bundled Sample · phone view keeps the inspection focused on Structures, bytes, and Fields.</p>' : '<div class="inspector-ingress"><div><strong>Open another local file</strong><span>Choose one PNG or WAV file, or drop it anywhere on this workbench.</span></div>' + renderFileIngress() + '</div>'}
         ${renderNotice()}
         ${renderDiagnostics(inspection)}
 
-        <div class="inspector-layout">
+        ${narrow ? renderNarrowSelectionSummary(inspection, selection, selectedSummary, focusSemanticAction) + renderNarrowInspectorLayout(inspection, selection, resolution, activeNarrowTab, target.previewUrl) : `<div class="inspector-layout">
           <aside class="structure-panel" aria-labelledby="structure-heading"><div class="panel-heading"><span id="structure-heading">Structures</span><span class="panel-rule" aria-hidden="true"></span></div><p class="panel-intro">Named parts in source-file order. Use Enter to select; use the arrow keys to move between Structures.</p><nav class="structure-list" aria-label="${displayFormat} Structures" data-semantic-list="structures">${renderStructureLabels(inspection, selection, true)}</nav><div class="structure-legend"><span class="legend-mark legend-structure" aria-hidden="true"></span><span>Structure boundary</span><span class="legend-mark legend-selection" aria-hidden="true"></span><span>Selected Byte span</span><span class="legend-mark legend-unmapped" aria-hidden="true"></span><span>Unmapped span</span></div></aside>
 
           <section class="byte-panel" aria-labelledby="bytes-heading"><div class="panel-heading"><span id="bytes-heading">Bytes</span><span class="panel-rule" aria-hidden="true"></span><span class="panel-meta">16 bytes / row · virtualized</span></div><p class="panel-intro" id="byte-grid-help">Select a byte to focus its smallest matching Field. Shift-select or use arrow keys to extend the exact Selection. Raw-byte tab enumeration is optional.</p>
@@ -700,7 +786,7 @@ function renderInspector(target: InspectionSession, requestedSelection: ByteSpan
           </section>
 
           <aside class="field-panel" aria-labelledby="field-heading">${renderFieldInspector(inspection, resolution)}<figure class="source-preview"><figcaption id="field-heading">Source preview <span>· original-file rendering</span></figcaption>${preview}</figure></aside>
-        </div>
+        </div>`}
         <footer class="sheet-footer inspector-footer"><span>Inspection: <strong>${target.kind === 'local' ? `Local ${displayFormat}` : `${displayFormat} Sample`}</strong></span><span>Source preview is not parsed output.</span><span class="footer-local">Local only · no telemetry</span></footer>
       </section>
     </main>
@@ -716,6 +802,28 @@ function renderInspector(target: InspectionSession, requestedSelection: ByteSpan
     scrollTop: gridScrollTop,
     onSelect: (nextSelection, nextFocus, scrollTop, anchor) => renderInspector(target, nextSelection, nextFocus, scrollTop, anchor),
   });
+
+  if (narrow) {
+    const tabElements = Array.from(mount.querySelectorAll<HTMLButtonElement>('[data-narrow-tab]'));
+    tabElements.forEach((tab, index) => {
+      tab.addEventListener('click', () => {
+        const nextTab = tab.dataset.narrowTab as NarrowTab | undefined;
+        if (nextTab) activateNarrowTab(target, nextTab);
+      });
+      tab.addEventListener('keydown', (event) => {
+        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+        event.preventDefault();
+        const nextIndex = event.key === 'Home'
+          ? 0
+          : event.key === 'End'
+            ? tabElements.length - 1
+            : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabElements.length) % tabElements.length;
+        const nextTab = tabElements[nextIndex];
+        const nextTabId = nextTab?.dataset.narrowTab as NarrowTab | undefined;
+        if (nextTabId) activateNarrowTab(target, nextTabId);
+      });
+    });
+  }
 
   mount.querySelectorAll<HTMLElement>('[data-structure-id]').forEach((element) => {
     element.addEventListener('click', () => {
@@ -767,6 +875,7 @@ function renderInspector(target: InspectionSession, requestedSelection: ByteSpan
   });
 
   mount.querySelector<HTMLButtonElement>('[data-focus-bytes]')?.addEventListener('click', () => {
+    if (narrow) activateNarrowTab(target, 'bytes', false);
     grid.scrollToOffset(selection.offset);
   });
   mount.querySelector<HTMLButtonElement>('[data-focus-semantic]')?.addEventListener('click', (event) => {
@@ -774,6 +883,7 @@ function renderInspector(target: InspectionSession, requestedSelection: ByteSpan
     const id = button.dataset.focusSemantic;
     if (!id) return;
     const kind = button.dataset.focusSemanticKind;
+    if (narrow) activateNarrowTab(target, kind === 'field' ? 'fields' : 'structures', false);
     const semantic = kind === 'field'
       ? mount.querySelector<HTMLElement>(`.field-row[data-field-id="${CSS.escape(id)}"]`)
       : mount.querySelector<HTMLElement>(`[data-structure-id="${CSS.escape(id)}"]`);
@@ -854,6 +964,7 @@ mount.addEventListener('click', (event) => {
 });
 
 mount.addEventListener('dragenter', (event) => {
+  if (isNarrowViewport()) return;
   if (!event.dataTransfer) return;
   event.preventDefault();
   dragDepth += 1;
@@ -861,11 +972,13 @@ mount.addEventListener('dragenter', (event) => {
 });
 
 mount.addEventListener('dragover', (event) => {
+  if (isNarrowViewport()) return;
   event.preventDefault();
   if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
 });
 
 mount.addEventListener('dragleave', (event) => {
+  if (isNarrowViewport()) return;
   event.preventDefault();
   dragDepth = Math.max(0, dragDepth - 1);
   if (dragDepth === 0) mount.classList.remove('is-drag-active');
@@ -893,5 +1006,11 @@ function renderRoute(): void {
 }
 
 window.addEventListener('popstate', renderRoute);
+window.addEventListener('resize', () => {
+  const nextNarrowViewport = isNarrowViewport();
+  if (nextNarrowViewport === lastNarrowViewport) return;
+  lastNarrowViewport = nextNarrowViewport;
+  render();
+});
 window.addEventListener('beforeunload', () => revokePreview(session));
 renderRoute();

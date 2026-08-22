@@ -159,6 +159,13 @@ h1 { max-width: 12ch; margin: 36px 0 22px; font-size: clamp(3.2rem, 6vw, 6rem); 
 .inspector-ingress > div:first-child span { color: var(--ink-soft); font-size: 0.77rem; }
 .inspector-ingress .file-ingress { justify-content: flex-end; }
 .inspector-ingress .file-picker { min-height: 42px; padding: 9px 16px; font-size: 0.68rem; }
+.narrow-sample-note { position: relative; z-index: 1; margin: 0; padding: 12px clamp(30px, 4.5vw, 72px); border-bottom: 1px solid rgba(29, 40, 38, 0.22); color: var(--verdigris); font: 0.66rem var(--mono); letter-spacing: 0.04em; }
+.sample-only-note { margin: 12px 0 0; color: var(--verdigris); font: 0.68rem var(--mono); letter-spacing: 0.04em; }
+.sample-links { display: grid; gap: 12px; max-width: 360px; margin-top: 26px; }
+.narrow-inspector-tabs { display: none; }
+.narrow-inspector-tab { border: 0; border-bottom: 1px solid var(--rule); padding: 12px 10px; background: transparent; color: var(--ink-soft); font: 0.67rem var(--mono); letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; }
+.narrow-inspector-tab.is-active { border-bottom: 2px solid var(--oxide); color: var(--oxide-dark); }
+.narrow-panel[hidden] { display: none; }
 .diagnostics { position: relative; z-index: 1; margin: 0 clamp(30px, 4.5vw, 72px); padding: 14px 0 0; }
 .diagnostics-heading { display: flex; align-items: center; gap: 12px; color: var(--oxide-dark); font: 0.68rem var(--mono); letter-spacing: 0.08em; text-transform: uppercase; }
 .diagnostics ul { display: grid; gap: 8px; margin: 10px 0 0; padding: 0 0 15px; list-style: none; border-bottom: 1px solid rgba(29, 40, 38, 0.22); }
@@ -370,6 +377,32 @@ h1 { max-width: 12ch; margin: 36px 0 22px; font-size: clamp(3.2rem, 6vw, 6rem); 
   .source-preview img { max-width: 80px; }
   .inspector-footer { display: none; }
   .inspector-sheet .registration { display: none; }
+  .narrow-sample-note { padding-left: 28px; padding-right: 28px; line-height: 1.45; }
+  .narrow-inspector-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0 22px; border-bottom: 1px solid var(--rule); }
+  .narrow-inspector-tab { min-height: 48px; padding: 13px 8px; }
+  .narrow-inspector-tab:focus-visible { position: relative; z-index: 1; outline-offset: -4px; }
+  .narrow-inspector-layout { display: block; min-height: 0; }
+  .narrow-panel { display: block; min-width: 0; padding: 26px 22px 32px; border-right: 0; border-bottom: 0; }
+  .narrow-panel.structure-panel, .narrow-panel.byte-panel, .narrow-panel.field-panel { display: block; }
+  .narrow-panel[hidden] { display: none; }
+  .narrow-panel .panel-intro { min-height: 0; margin-bottom: 20px; font-size: 0.95rem; }
+  .narrow-panel .structure-list .structure-row { min-height: 62px; padding-top: 14px; padding-bottom: 14px; }
+  .narrow-panel .field-row { min-height: 48px; padding-top: 14px; padding-bottom: 14px; }
+  .narrow-panel .structure-legend { margin-top: 30px; }
+  .narrow-panel .byte-grid { max-width: 100%; margin-top: 20px; overflow-x: auto; }
+  .narrow-panel .byte-grid-header, .narrow-panel .byte-grid-viewport { min-width: 530px; }
+  .narrow-panel .byte-grid-viewport { height: 390px; }
+  .narrow-panel .byte-grid-row { min-width: 530px; }
+  .narrow-panel .goto-form { row-gap: 10px; }
+  .narrow-panel .goto-form select, .narrow-panel .goto-form input, .narrow-panel .goto-form .button { min-height: 44px; }
+  .narrow-panel .field-panel { display: block; }
+  .narrow-panel .field-structure-heading { grid-template-columns: 52px minmax(0, 1fr); margin-top: 24px; }
+  .narrow-panel .field-detail h3 { overflow-wrap: anywhere; }
+  .narrow-panel .field-facts div { grid-template-columns: 78px minmax(0, 1fr); }
+  .narrow-selection-summary { margin: 0 22px; padding-top: 15px; padding-bottom: 15px; font-size: 0.92rem; }
+  .narrow-selection-summary > .inline-copy, .narrow-selection-summary > .inline-focus { margin-left: 31px; }
+  .narrow-selection-summary > .inline-focus { margin-left: auto; }
+  .narrow-panel .source-preview { margin-top: 32px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
