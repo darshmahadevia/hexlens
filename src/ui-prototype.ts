@@ -9,12 +9,14 @@ import { sampleInspection } from './sample.ts';
 type VariantKey = 'A' | 'B' | 'C' | 'D' | 'E';
 type Surface = 'landing' | 'inspect';
 type Theme = 'light' | 'dark';
+type InspectorPanel = 'map' | 'info';
 
 interface PrototypeState {
   variant: VariantKey;
   surface: Surface;
   theme: Theme;
   structureIndex: number;
+  inspectorPanel: InspectorPanel;
 }
 
 const sample = sampleInspection();
@@ -29,6 +31,29 @@ const variants: Array<{ key: VariantKey; name: string; thesis: string }> = [
 const iconSun = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.5"></circle><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M18.7 5.3l-1.4 1.4M6.7 17.3l-1.4 1.4"></path></svg>`;
 const iconMoon = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 15.4A8.5 8.5 0 0 1 8.6 4 8.5 8.5 0 1 0 20 15.4Z"></path></svg>`;
 const iconArrow = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"></path></svg>`;
+
+const structureLessons = [
+  {
+    name: 'The file\'s ID card',
+    meaning: 'Every PNG starts with these eight bytes. They identify the format before any image data is decoded.',
+    reading: '89 50 4E 47 spells the PNG marker. The remaining bytes help software catch files damaged by text transfer.',
+  },
+  {
+    name: 'The image blueprint',
+    meaning: 'IHDR records the width, height, color type, bit depth, and the rules a decoder needs before reading pixels.',
+    reading: 'The chunk begins with its data length and the letters IHDR. Its 13 data bytes describe this one-pixel sample.',
+  },
+  {
+    name: 'The compressed picture',
+    meaning: 'IDAT holds the compressed image stream. A PNG can split this stream across several IDAT chunks.',
+    reading: 'HexLens marks the payload and its source span. It leaves pixel decoding to an image decoder.',
+  },
+  {
+    name: 'The full stop',
+    meaning: 'IEND marks the end of the PNG datastream. It has no payload, but every valid PNG needs it.',
+    reading: 'A zero data length, the letters IEND, and a CRC close the file in a predictable twelve-byte envelope.',
+  },
+] as const;
 
 function selected(state: PrototypeState) {
   return sample.structures[state.structureIndex] ?? sample.structures[0];
@@ -52,8 +77,8 @@ function fieldReadout(state: PrototypeState): string {
   return `<div class="p-field"><span class="p-field-label">Selected structure</span><h3>${structure.label}</h3><p>${structure.description}</p><dl><div><dt>Byte span</dt><dd>${structure.span.offset}–${structure.span.offset + structure.span.length - 1}</dd></div><div><dt>Length</dt><dd>${structure.span.length} bytes</dd></div><div><dt>First field</dt><dd>${field?.label ?? 'Opaque payload'}</dd></div><div><dt>Value</dt><dd>${field?.value ?? 'Not decoded'}</dd></div></dl></div>`;
 }
 
-function action(label = 'Inspect the PNG sample'): string {
-  return `<button class="p-primary" type="button" data-surface="inspect">${label}${iconArrow}</button>`;
+function action(label = 'Inspect the PNG sample', panel?: InspectorPanel): string {
+  return `<button class="p-primary" type="button" data-surface="inspect"${panel ? ` data-panel="${panel}"` : ''}>${label}${iconArrow}</button>`;
 }
 
 function localMark(): string {
@@ -66,8 +91,14 @@ function VariantA(state: PrototypeState): string {
 }
 
 function VariantB(state: PrototypeState): string {
-  if (state.surface === 'inspect') return `<main class="b-inspector p-screen"><aside class="b-index"><span>sample.png</span><h1>Inspect</h1>${structureNav(state)}${localMark()}</aside><section class="b-work"><header><span>PNG / 68 bytes</span><strong>${selected(state).label}</strong></header><div class="b-map">${byteMap(state)}</div><div class="b-detail">${fieldReadout(state)}<p class="b-note">Source preview is the original file rendering, never parsed output.</p></div></section></main>`;
-  return `<main class="b-editorial p-screen"><section class="b-manifesto"><a class="p-wordmark" href="?variant=B&surface=landing&theme=${state.theme}">HexLens</a><h1>Read the file.<br>See its structure.</h1><p>PNG and WAV inspection that runs entirely in your browser.</p>${action('Try the sample')}</section><section class="b-proof"><div class="b-proof-title"><span>One selection</span><strong>${selected(state).label}</strong><span>${selected(state).span.length} bytes</span></div>${byteMap(state, 48)}${structureNav(state, true)}<footer>${localMark()}<span>No upload. No account.</span></footer></section></main>`;
+  if (state.surface === 'inspect') {
+    const lesson = structureLessons[state.structureIndex] ?? structureLessons[0];
+    const tabs = `<nav class="b-tabs" role="tablist" aria-label="Inspector view"><button type="button" role="tab" aria-selected="${state.inspectorPanel === 'map'}" data-panel="map" class="${state.inspectorPanel === 'map' ? 'is-active' : ''}">Byte map</button><button type="button" role="tab" aria-selected="${state.inspectorPanel === 'info'}" data-panel="info" class="${state.inspectorPanel === 'info' ? 'is-active' : ''}">Info</button></nav>`;
+    const mapPanel = `<div class="b-map">${byteMap(state)}</div><div class="b-detail">${fieldReadout(state)}<p class="b-note">Source preview is the original file rendering, never parsed output.</p></div>`;
+    const infoPanel = `<article class="b-lesson"><header><span>${selected(state).span.length} bytes selected</span><h2>${lesson.name}</h2><p>${lesson.meaning}</p></header><div class="b-lesson-grid"><section><h3>How to read it</h3><p>${lesson.reading}</p></section><section><h3>Where it sits</h3><p>Offsets ${selected(state).span.offset} through ${selected(state).span.offset + selected(state).span.length - 1} in this file.</p></section></div><div class="b-lesson-bytes"><span>Selected source bytes</span>${byteMap(state, selected(state).span.offset + selected(state).span.length)}</div></article>`;
+    return `<main class="b-inspector p-screen"><aside class="b-index"><span>sample.png</span><h1>Inspect</h1>${structureNav(state)}${localMark()}</aside><section class="b-work"><header><span>PNG / 68 bytes</span><strong>${selected(state).label}</strong>${tabs}</header>${state.inspectorPanel === 'info' ? infoPanel : mapPanel}</section></main>`;
+  }
+  return `<main class="b-landing p-screen"><div class="b-editorial"><section class="b-manifesto"><a class="p-wordmark" href="?variant=B&surface=landing&theme=${state.theme}">HexLens</a><h1>Read the file.<br>See its structure.</h1><p>PNG and WAV inspection that runs entirely in your browser.</p>${action('Try the sample')}</section><section class="b-proof"><div class="b-proof-title"><span>One selection</span><strong>${selected(state).label}</strong><span>${selected(state).span.length} bytes</span></div>${byteMap(state, 48)}${structureNav(state, true)}<footer>${localMark()}<span>No upload. No account.</span></footer></section></div><section class="b-connection"><header><h2>A map between code and meaning.</h2><p>Select any named structure. HexLens keeps its decoded value, explanation, and exact source bytes in the same view.</p></header><div class="b-connection-rows"><div><span>89 50 4E 47</span><strong>Bytes</strong><p>The original values, in source order.</p></div><div><span>00–07</span><strong>Structure</strong><p>The range those bytes belong to.</p></div><div><span>PNG signature</span><strong>Meaning</strong><p>What the range does inside the file.</p></div></div></section><section class="b-teach"><div><h2>Learn the format while you inspect it.</h2><p>The Info tab explains why each structure exists and how to read its bytes. It follows your current selection, so the lesson stays tied to the file.</p>${action('Open the educational view', 'info')}</div><aside><span>Current lesson</span><strong>The file's ID card</strong><p>Every PNG starts with a fixed eight-byte signature. That signature lets software identify the format before decoding pixels.</p></aside></section><footer class="b-closing"><div><h2>Bring a file.<br>Keep the file.</h2><p>Inspection runs locally in your browser.</p></div><div>${localMark()}${action('Inspect the sample')}</div></footer></main>`;
 }
 
 function VariantC(state: PrototypeState): string {
@@ -91,7 +122,8 @@ function chrome(state: PrototypeState): string {
 
 function switcher(state: PrototypeState): string {
   const meta = variants.find((item) => item.key === state.variant)!;
-  return `<div class="p-switcher" role="region" aria-label="Prototype variants"><button type="button" data-cycle="-1" aria-label="Previous variant">${iconArrow}</button><div><strong>${state.variant} · ${meta.name}</strong><span>${state.surface} / ${state.theme} / ${selected(state).label}</span></div><button type="button" data-cycle="1" aria-label="Next variant">${iconArrow}</button></div>`;
+  const view = state.variant === 'B' && state.surface === 'inspect' ? `${state.surface} / ${state.inspectorPanel}` : state.surface;
+  return `<div class="p-switcher" role="region" aria-label="Prototype variants"><button type="button" data-cycle="-1" aria-label="Previous variant">${iconArrow}</button><div><strong>${state.variant} · ${meta.name}</strong><span>${view} / ${state.theme} / ${selected(state).label}</span></div><button type="button" data-cycle="1" aria-label="Next variant">${iconArrow}</button></div>`;
 }
 
 function parseState(): PrototypeState {
@@ -101,7 +133,8 @@ function parseState(): PrototypeState {
   const surface = params.get('surface') === 'inspect' ? 'inspect' : 'landing';
   const theme = params.get('theme') === 'dark' ? 'dark' : 'light';
   const structureIndex = Math.max(0, Math.min(sample.structures.length - 1, Number(params.get('selection') ?? 0) || 0));
-  return { variant, surface, theme, structureIndex };
+  const inspectorPanel = params.get('panel') === 'info' ? 'info' : 'map';
+  return { variant, surface, theme, structureIndex, inspectorPanel };
 }
 
 function writeState(state: PrototypeState): void {
@@ -110,6 +143,7 @@ function writeState(state: PrototypeState): void {
   params.set('surface', state.surface);
   params.set('theme', state.theme);
   params.set('selection', String(state.structureIndex));
+  if (state.variant === 'B' && state.surface === 'inspect') params.set('panel', state.inspectorPanel);
   window.history.replaceState(null, '', `${window.location.pathname}?${params}`);
 }
 
@@ -128,10 +162,12 @@ export function mountUiPrototype(mount: HTMLDivElement): void {
     const surface = target?.closest<HTMLElement>('[data-surface]')?.dataset.surface as Surface | undefined;
     const theme = target?.closest<HTMLElement>('[data-theme]')?.dataset.theme as Theme | undefined;
     const cycle = Number(target?.closest<HTMLElement>('[data-cycle]')?.dataset.cycle ?? 0);
+    const panel = target?.closest<HTMLElement>('[data-panel]')?.dataset.panel as InspectorPanel | undefined;
     const structureIndex = Number(target?.closest<HTMLElement>('[data-structure]')?.dataset.structure);
     const byteOffset = Number(target?.closest<HTMLElement>('[data-byte]')?.dataset.byte);
     if (surface) state = { ...state, surface };
     if (theme) state = { ...state, theme };
+    if (panel) state = { ...state, inspectorPanel: panel };
     if (cycle) {
       const current = variants.findIndex((item) => item.key === state.variant);
       state = { ...state, variant: variants[(current + cycle + variants.length) % variants.length].key };

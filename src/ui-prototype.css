@@ -282,6 +282,7 @@ html[data-prototype-theme] body {
 .variant-b .p-secondary { border-radius: 2px; }
 .variant-b .p-structure { border-radius: 0; }
 
+.b-landing { background: var(--bg); }
 .b-editorial { display: grid; grid-template-columns: .82fr 1.18fr; background: var(--bg); }
 .b-manifesto { display: grid; align-content: space-between; min-height: 100vh; padding: 112px clamp(38px, 6vw, 100px) 110px; border-right: 1px solid var(--ink); }
 .b-manifesto h1 { max-width: 9ch; margin: auto 0 26px; font-size: clamp(4rem, 7vw, 7.6rem); font-weight: 550; letter-spacing: -.04em; line-height: .9; }
@@ -293,17 +294,58 @@ html[data-prototype-theme] body {
 .b-proof-title strong { font-size: 1.4rem; }
 .b-proof footer { display: flex; justify-content: space-between; padding-top: 12px; border-top: 1px solid var(--line); color: var(--muted); font-size: .66rem; }
 
+.b-connection { display: grid; gap: 90px; padding: 150px clamp(38px, 8vw, 140px); border-top: 1px solid var(--ink); background: var(--surface); }
+.b-connection > header { display: grid; grid-template-columns: minmax(320px, .9fr) minmax(280px, .55fr); gap: 12vw; align-items: end; }
+.b-connection h2,
+.b-teach h2,
+.b-closing h2 { margin: 0; font-size: clamp(3rem, 6vw, 6.5rem); font-weight: 540; letter-spacing: -.04em; line-height: .94; }
+.b-connection > header p,
+.b-teach > div > p { max-width: 42ch; margin: 0; color: var(--muted); font-size: 1rem; line-height: 1.7; }
+.b-connection-rows { border-top: 1px solid var(--ink); }
+.b-connection-rows > div { display: grid; grid-template-columns: minmax(150px, .5fr) minmax(170px, .5fr) 1fr; gap: 30px; align-items: baseline; padding: 26px 0; border-bottom: 1px solid var(--line); }
+.b-connection-rows span { color: var(--accent); font: .68rem 'JetBrains Mono Variable', monospace; }
+.b-connection-rows strong { font-size: 1.35rem; font-weight: 620; }
+.b-connection-rows p { margin: 0; color: var(--muted); line-height: 1.55; }
+
+.b-teach { display: grid; grid-template-columns: 1.05fr .7fr; gap: clamp(70px, 12vw, 190px); align-items: center; padding: 150px clamp(38px, 8vw, 140px); border-top: 1px solid var(--ink); }
+.b-teach > div { display: grid; justify-items: start; gap: 30px; }
+.b-teach > aside { display: grid; gap: 18px; padding: 54px 0 54px 42px; border-left: 1px solid var(--ink); }
+.b-teach > aside span { color: var(--accent); font: .62rem 'JetBrains Mono Variable', monospace; text-transform: uppercase; }
+.b-teach > aside strong { max-width: 12ch; font-size: clamp(2rem, 3.3vw, 3.7rem); font-weight: 560; letter-spacing: -.035em; line-height: 1; }
+.b-teach > aside p { max-width: 36ch; margin: 0; color: var(--muted); line-height: 1.7; }
+
+.b-closing { display: grid; grid-template-columns: 1fr auto; gap: 70px; align-items: end; min-height: 58vh; padding: 120px clamp(38px, 8vw, 140px) 145px; background: #15130f; color: #faf4e9; }
+.b-closing p { margin: 24px 0 0; color: #b9afa0; }
+.b-closing > div:last-child { display: grid; justify-items: start; gap: 28px; }
+.b-closing .p-primary { background: #ff7359; color: #15130f; }
+.b-closing .p-local { color: #72d8b6; }
+
 .b-inspector { display: grid; grid-template-columns: minmax(300px, .72fr) minmax(620px, 1.28fr); background: var(--bg); }
 .b-index { display: flex; flex-direction: column; min-height: 100vh; padding: 120px 46px 110px; border-right: 1px solid var(--ink); }
 .b-index > span { font: .62rem 'JetBrains Mono Variable', monospace; }
 .b-index h1 { margin: 12px 0 60px; font-size: clamp(3.5rem, 7vw, 7rem); font-weight: 540; letter-spacing: -.04em; }
 .b-index .p-local { margin-top: auto; }
 .b-work { display: grid; align-content: center; gap: 26px; min-width: 0; padding: 110px clamp(34px, 6vw, 90px); background: var(--surface); }
-.b-work > header { display: flex; justify-content: space-between; padding-bottom: 14px; border-bottom: 1px solid var(--ink); }
+.b-work > header { display: grid; grid-template-columns: auto 1fr auto; gap: 24px; align-items: center; padding-bottom: 14px; border-bottom: 1px solid var(--ink); }
 .b-work > header span { color: var(--muted); font: .6rem 'JetBrains Mono Variable', monospace; }
+.b-work > header > strong { justify-self: end; }
+.b-tabs { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line); }
+.b-tabs button { min-width: 72px; min-height: 36px; border: 0; background: transparent; color: var(--muted); font-size: .7rem; font-weight: 620; cursor: pointer; }
+.b-tabs button + button { border-left: 1px solid var(--line); }
+.b-tabs button.is-active { background: var(--ink); color: var(--surface); }
 .b-map { padding: 18px 0; }
 .b-detail { display: grid; grid-template-columns: 1fr 230px; gap: 50px; padding-top: 24px; border-top: 1px solid var(--ink); }
 .b-note { color: var(--muted); font-size: .7rem; line-height: 1.6; }
+.b-lesson { display: grid; gap: 48px; padding-top: 18px; }
+.b-lesson > header { display: grid; gap: 14px; }
+.b-lesson > header span,
+.b-lesson-bytes > span { color: var(--accent); font: .6rem 'JetBrains Mono Variable', monospace; text-transform: uppercase; }
+.b-lesson h2 { max-width: 11ch; margin: 0; font-size: clamp(3rem, 5.6vw, 6.2rem); font-weight: 540; letter-spacing: -.04em; line-height: .92; }
+.b-lesson > header p { max-width: 58ch; margin: 0; color: var(--muted); font-size: 1rem; line-height: 1.7; }
+.b-lesson-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; padding-top: 24px; border-top: 1px solid var(--ink); }
+.b-lesson-grid h3 { margin: 0 0 10px; font-size: .82rem; }
+.b-lesson-grid p { margin: 0; color: var(--muted); font-size: .78rem; line-height: 1.65; }
+.b-lesson-bytes { display: grid; gap: 15px; }
 
 /* C. Horizon Bands */
 .variant-c { --bg: #eef2f4; --surface: #fbfcfd; --surface-2: #dfe6e9; --ink: #142127; --muted: #63737a; --accent: #006f8c; --accent-soft: #d5edf3; --local: #9c552f; }
@@ -407,6 +449,9 @@ html[data-prototype-theme] body {
   .a-inspect-grid > aside:last-child { grid-column: 1 / -1; border-top: 1px solid var(--line); border-left: 0; }
   .b-manifesto,
   .b-index { min-height: 70vh; border-right: 0; border-bottom: 1px solid var(--ink); }
+  .b-connection > header,
+  .b-teach { grid-template-columns: 1fr; gap: 60px; }
+  .b-closing { grid-template-columns: 1fr; }
   .c-hero { grid-template-columns: 1fr; gap: 50px; }
   .c-hero > div:last-child { align-self: start; }
   .c-summary { grid-template-columns: 1fr; }
@@ -454,6 +499,22 @@ html[data-prototype-theme] body {
   .b-index { min-height: 72vh; padding: 96px 22px 80px; }
   .b-index h1 { font-size: 4.3rem; margin-bottom: 34px; }
   .b-detail { grid-template-columns: 1fr; gap: 12px; }
+  .b-connection,
+  .b-teach { gap: 54px; padding: 96px 24px; }
+  .b-connection h2,
+  .b-teach h2,
+  .b-closing h2 { font-size: 3.45rem; }
+  .b-connection-rows > div { grid-template-columns: 1fr 1fr; gap: 10px 18px; }
+  .b-connection-rows p { grid-column: 1 / -1; }
+  .b-teach > aside { padding: 36px 0 0; border-top: 1px solid var(--ink); border-left: 0; }
+  .b-closing { min-height: 70vh; padding: 96px 24px 120px; }
+  .b-work > header { grid-template-columns: 1fr auto; }
+  .b-work > header > strong { justify-self: end; }
+  .b-tabs { grid-column: 1 / -1; }
+  .b-tabs button { min-height: 42px; }
+  .b-lesson { gap: 34px; }
+  .b-lesson h2 { font-size: 3.7rem; }
+  .b-lesson-grid { grid-template-columns: 1fr; gap: 26px; }
 
   .c-band,
   .c-inspect-band { grid-template-columns: 1fr; gap: 20px; padding: 46px 18px; }
