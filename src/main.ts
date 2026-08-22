@@ -96,6 +96,7 @@ const landingViewOptions = {
 let selectionAnnouncementTimer: ReturnType<typeof setTimeout> | undefined;
 let selectionAnnouncementSequence = 0;
 let lastNarrowViewport = isNarrowViewport();
+let lastSelectionMotionKey: string | undefined;
 
 function isNarrowViewport(): boolean {
   return typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 620px)').matches;
@@ -142,6 +143,12 @@ function sourceDataUrl(format: FormatId): string {
     : format === 'png' ? `data:image/png;base64,${PNG_SAMPLE_BASE64}` : '';
 }
 
+function byteGridHeightStyle(inspection: Inspection): string {
+  const visibleRows = Math.min(rowCount(inspection.bytes.length), 8);
+  const height = Math.max(visibleRows * GRID_ROW_HEIGHT, GRID_ROW_HEIGHT);
+  return `style="--byte-grid-height: ${height}px"`;
+}
+
 function sampleSession(inspection: Inspection): InspectionSession {
   return { kind: 'sample', inspection, previewUrl: sourceDataUrl(inspection.format) };
 }
@@ -165,7 +172,11 @@ function renderEmptyInspector(): void {
           ${renderThemeToggle()}
         </header>
         ${renderStatus()}
-        <div class="empty-inspector-content"><h2>${narrow ? 'Choose a Sample to begin.' : 'Bring a PNG or WAV into focus.'}</h2><p>${narrow ? 'Phone view is reserved for the bundled PNG and WAV Samples. Choose one to explore its Structures, bytes, and Fields.' : 'Choose one local PNG or WAV, or drop it here. HexLens checks the bytes on this device and keeps the current file in memory only.'}</p>${narrow ? `<div class="sample-links" aria-label="Sample files"><a class="button button-primary" href="${router.href('/inspect?sample=png')}">Open PNG Sample</a><a class="button button-secondary" href="${router.href('/inspect?sample=wav')}">Open WAV Sample</a></div>` : `${renderFileIngress()}<p class="drop-hint">Drop one PNG or WAV file · directories and multiple files are not accepted.</p>`}${renderNotice()}</div>
+        <div class="empty-inspector-content">
+          <div class="empty-inspector-copy"><h2>${narrow ? 'Choose a Sample to begin.' : 'Bring a PNG or WAV into focus.'}</h2><p>${narrow ? 'Phone view is reserved for the bundled PNG and WAV Samples. Choose one to explore its Structures, bytes, and Fields.' : 'Choose one local PNG or WAV, or drop it here. HexLens checks the bytes on this device and keeps the current file in memory only.'}</p>${narrow ? '' : `${renderFileIngress()}<p class="drop-hint">Drop one PNG or WAV file · directories and multiple files are not accepted.</p>`}</div>
+          <aside class="empty-sample-path" aria-labelledby="sample-path-heading"><span>Bundled source files</span><h3 id="sample-path-heading">Trace a known Sample first.</h3><p>Follow a PNG chunk or WAV header from its Structure to the exact bytes and decoded Fields.</p><div class="sample-links" aria-label="Sample files"><a class="button button-primary" href="${router.href('/inspect?sample=png')}">Open PNG Sample</a><a class="button button-secondary" href="${router.href('/inspect?sample=wav')}">Open WAV Sample</a></div></aside>
+          ${renderNotice()}
+        </div>
       </section>
     </main>
   `;
@@ -174,11 +185,15 @@ function renderEmptyInspector(): void {
 function render(): void {
   if (view === 'landing') {
     if (session?.kind === 'local') revokePreview(session);
+    lastSelectionMotionKey = undefined;
     renderLanding(landingViewOptions);
     return;
   }
   if (session) renderInspector(session);
-  else renderEmptyInspector();
+  else {
+    lastSelectionMotionKey = undefined;
+    renderEmptyInspector();
+  }
 }
 
 function setNotice(kind: NoticeKind, message: string, origin = view): void {
@@ -493,7 +508,7 @@ function renderNarrowInspectorLayout(
         <p class="panel-intro" id="narrow-byte-grid-help">Tap a byte to preserve the exact Selection. Scroll inside the byte grid when a row needs more room.</p>
         <form class="goto-form" data-testid="goto-form"><label for="goto-offset">Go to offset</label><select id="goto-mode" aria-label="Offset notation"><option value="hex">Hexadecimal</option><option value="decimal">Decimal (explicit)</option></select><input id="goto-offset" data-testid="offset-input" name="offset" inputmode="text" autocomplete="off" placeholder="e.g. 0030" aria-describedby="offset-help offset-error" /><button class="button button-secondary" type="submit">Go</button><span id="offset-help" class="sr-only">Hexadecimal is the default. Choose Decimal explicitly for base ten.</span></form><p class="offset-error" id="offset-error" data-testid="offset-error" role="alert" hidden></p>
         <div class="byte-accessibility"><label class="byte-enumeration"><input type="checkbox" data-testid="enumerate-bytes" ${enumerateRawBytes ? 'checked' : ''} /><span>Enumerate raw bytes with Tab</span></label><span id="raw-byte-help">Off by default; use Go to offset or the focused byte grid.</span></div>
-        <div class="byte-grid" id="byte-grid" data-testid="byte-grid"><div class="byte-grid-header" aria-hidden="true"><span>Offset</span><span>Hex bytes</span><span>ASCII</span></div><div class="byte-grid-viewport" data-grid-viewport role="grid"><div class="byte-grid-spacer" data-grid-spacer></div><div class="byte-grid-rows" data-grid-rows></div></div></div>
+        <div class="byte-grid" id="byte-grid" data-testid="byte-grid"><div class="byte-grid-header" aria-hidden="true"><span>Offset</span><span>Hex bytes</span><span>ASCII</span></div><div class="byte-grid-viewport" data-grid-viewport role="grid" ${byteGridHeightStyle(inspection)}><div class="byte-grid-spacer" data-grid-spacer></div><div class="byte-grid-rows" data-grid-rows></div></div></div>
         <div class="ascii-note"><span class="mono">·</span> non-printable bytes use the <span class="mono">·</span> marker; each byte has an accessible value label</div>
       </section>
       <aside class="narrow-panel field-panel${activeTab === 'fields' ? ' is-active' : ''}" id="narrow-panel-fields" data-testid="narrow-panel-fields" data-narrow-panel="fields" role="tabpanel" aria-labelledby="narrow-tab-fields"${hidden('fields')}>
@@ -530,8 +545,11 @@ function renderInspector(target: InspectionSession, requestedSelection?: ByteSpa
   const narrow = isNarrowViewport();
   const activeNarrowTab = target.narrowTab ?? 'structures';
   const inspectorPanel = target.inspectorPanel ?? 'map';
+  const selectionMotionKey = `${inspection.format}:${sourceName}:${inspection.bytes.length}:${selection.offset}:${selection.length}`;
+  const selectionChanged = selectionMotionKey !== lastSelectionMotionKey;
+  lastSelectionMotionKey = selectionMotionKey;
   mount.innerHTML = `
-    <main class="app-shell inspector-shell">
+    <main class="app-shell inspector-shell${selectionChanged ? ' is-selection-change' : ''}">
       <section class="sheet-frame inspector-sheet" aria-labelledby="inspector-title" data-drop-target="inspector">
         <header class="inspector-toolbar">
           <a href="${router.href('/')}" class="back-link">${arrowIcon('left')}Back to landing</a>
@@ -552,7 +570,7 @@ function renderInspector(target: InspectionSession, requestedSelection?: ByteSpa
           <section class="byte-panel" aria-labelledby="bytes-heading"><div class="panel-heading"><span id="bytes-heading">Bytes</span><span class="panel-rule" aria-hidden="true"></span><span class="panel-meta">16 bytes / row · virtualized</span></div><p class="panel-intro" id="byte-grid-help">Select a byte to focus its smallest matching Field. Shift-select or use arrow keys to extend the exact Selection. Raw-byte tab enumeration is optional.</p>
             <form class="goto-form" data-testid="goto-form"><label for="goto-offset">Go to offset</label><select id="goto-mode" aria-label="Offset notation"><option value="hex">Hexadecimal</option><option value="decimal">Decimal (explicit)</option></select><input id="goto-offset" data-testid="offset-input" name="offset" inputmode="text" autocomplete="off" placeholder="e.g. 0030" aria-describedby="offset-help offset-error" /><button class="button button-secondary" type="submit">Go</button><span id="offset-help" class="sr-only">Hexadecimal is the default. Choose Decimal explicitly for base ten.</span></form><p class="offset-error" id="offset-error" data-testid="offset-error" role="alert" hidden></p>
             <div class="byte-accessibility"><label class="byte-enumeration"><input type="checkbox" data-testid="enumerate-bytes" ${enumerateRawBytes ? 'checked' : ''} /><span>Enumerate raw bytes with Tab</span></label><span id="raw-byte-help">Off by default; use Go to offset or the focused byte grid for compact navigation.</span></div>
-            <div class="byte-grid" id="byte-grid" data-testid="byte-grid"><div class="byte-grid-header" aria-hidden="true"><span>Offset</span><span>Hex bytes</span><span>ASCII</span></div><div class="byte-grid-viewport" data-grid-viewport role="grid"><div class="byte-grid-spacer" data-grid-spacer></div><div class="byte-grid-rows" data-grid-rows></div></div></div>
+            <div class="byte-grid" id="byte-grid" data-testid="byte-grid"><div class="byte-grid-header" aria-hidden="true"><span>Offset</span><span>Hex bytes</span><span>ASCII</span></div><div class="byte-grid-viewport" data-grid-viewport role="grid" ${byteGridHeightStyle(inspection)}><div class="byte-grid-spacer" data-grid-spacer></div><div class="byte-grid-rows" data-grid-rows></div></div></div>
             <div class="selection-summary" id="selection-summary" data-testid="selection-summary" role="region" aria-labelledby="selection-summary-heading"><span class="summary-mark" aria-hidden="true"></span><span><span id="selection-summary-heading" class="sr-only">Selected span summary</span>${escapeHtml(selectedSummary)} <span class="summary-secondary">hex ${formatOffset(selection.offset, inspection.bytes.length)}–${formatOffset(Math.max(selection.offset, selection.offset + selection.length - 1), inspection.bytes.length)} · decimal ${formatDecimalOffset(selection.offset)}</span></span><button class="inline-copy" type="button" data-copy-kind="selection">Copy selected bytes</button>${focusSemanticAction}</div><div class="selection-announcement sr-only" aria-live="polite" aria-atomic="true" data-testid="selection-announcement"></div><div class="ascii-note"><span class="mono">·</span> non-printable bytes use the <span class="mono">·</span> marker; each byte has an accessible value label</div><div class="copy-feedback" data-testid="copy-feedback" role="status" aria-live="polite"></div>
           </section>
 
