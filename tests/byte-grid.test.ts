@@ -20,6 +20,9 @@ function fixtureInspection(): Inspection {
     id: 'fixture',
     format: 'png',
     state: 'ready',
+    complete: true,
+    termination: 'complete',
+    limitReached: false,
     sourceName: 'fixture.bin',
     bytes,
     structures: [{
@@ -34,9 +37,12 @@ function fixtureInspection(): Inspection {
         { id: 'field-b', name: 'b', label: 'Field B', span: { offset: 2, length: 2 }, encodedBytes: [0x12, 0x13], value: 0x1213, representation: 'unsigned integer', explanation: 'Second Field.' },
       ],
     }],
+    fields: [],
+    payloads: [],
     bitFields: [{ id: 'bit-a', name: 'flag', label: 'Flag', span: { offset: 0, length: 1 }, mask: 0x80, fieldId: 'field-a', value: 0, explanation: 'A bit.' }],
     derivedValues: [{ id: 'derived-a', name: 'sum', label: 'Sum', value: 0x2224, sourceFieldIds: ['field-a', 'field-b'], explanation: 'A calculation.' }],
-    unmappedSpans: [{ id: 'unmapped-a', span: { offset: 7, length: 3 }, label: 'Padding', reason: 'No parsed item claims these bytes.' }],
+    unmappedSpans: [{ id: 'unmapped-a', span: { offset: 7, length: 3 }, offset: 7, length: 3, label: 'Padding', reason: 'No parsed item claims these bytes.' }],
+    unmapped: [{ id: 'unmapped-a', span: { offset: 7, length: 3 }, offset: 7, length: 3, label: 'Padding', reason: 'No parsed item claims these bytes.' }],
     diagnostics: [],
   };
 }
