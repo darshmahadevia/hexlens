@@ -1,3 +1,7 @@
+import { hasPngSignature, inspectPng, PNG_SIGNATURE } from './domain/png.ts';
+import { hasRiffContainer, hasWavSignature, inspectWav, RIFF_SIGNATURE, WAVE_FORM } from './domain/wav.ts';
+import type { FormatId } from './domain/inspection.ts';
+
 export { hasPngSignature, inspectPng, PNG_SIGNATURE } from './domain/png.ts';
 export type { BitField, ByteSpan, DerivedValue, Diagnostic, Field, Inspection, Structure, UnmappedSpan } from './domain/inspection.ts';
 export {

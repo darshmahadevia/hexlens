@@ -22,7 +22,7 @@ import {
 import { spanIntersects, spanLabel } from './domain/inspection.ts';
 import { hasPngSignature, inspectPng } from './format.ts';
 import { FileJobController, type FileJobParseResult } from './file-session.ts';
-import { sampleInspection, PNG_SAMPLE_BASE64 } from './sample.ts';
+import { sampleInspection, PNG_SAMPLE_BASE64, wavSampleInspection, WAV_SAMPLE_BASE64 } from './sample.ts';
 
 const app = document.querySelector<HTMLDivElement>('#app');
 
@@ -69,12 +69,18 @@ function formatValue(value: string | number): string {
   return typeof value === 'number' ? value.toLocaleString('en-US') : value;
 }
 
-function sourceDataUrl(): string {
-  return `data:image/png;base64,${PNG_SAMPLE_BASE64}`;
+function formatLabel(format: FormatId): string {
+  return format === 'wav' ? 'WAV' : 'PNG';
 }
 
-function sampleSession(): InspectionSession {
-  return { kind: 'sample', inspection: sample, previewUrl: sourceDataUrl() };
+function sourceDataUrl(format: FormatId): string {
+  return format === 'wav'
+    ? `data:audio/wav;base64,${WAV_SAMPLE_BASE64}`
+    : `data:image/png;base64,${PNG_SAMPLE_BASE64}`;
+}
+
+function sampleSession(inspection: Inspection): InspectionSession {
+  return { kind: 'sample', inspection, previewUrl: sourceDataUrl(inspection.format) };
 }
 
 function revokePreview(target: InspectionSession | null): void {
@@ -93,10 +99,10 @@ function renderEmptyInspector(): void {
         <header class="inspector-toolbar">
           <a href="/" class="back-link">← Back to landing</a>
           <div class="toolbar-title"><span class="wordmark wordmark-small">HexLens</span><span class="toolbar-divider" aria-hidden="true"></span><h1 id="inspector-title">Open an Inspection</h1></div>
-          <div class="file-identity"><strong>No file selected</strong><span>Local PNG only</span></div>
+          <div class="file-identity"><strong>No file selected</strong><span>Local PNG or WAV</span></div>
         </header>
         ${renderStatus()}
-        <div class="empty-inspector-content"><span class="plate-mark">One file, one Inspection</span><h2>Bring a PNG to the workbench.</h2><p>Choose one local PNG or drop it here. HexLens checks the bytes on this device and keeps the current file in memory only.</p>${renderFileIngress()}<p class="drop-hint">Drop one PNG file · directories and multiple files are not accepted.</p>${renderNotice()}</div>
+        <div class="empty-inspector-content"><span class="plate-mark">One file, one Inspection</span><h2>Bring a PNG or WAV to the workbench.</h2><p>Choose one local PNG or WAV, or drop it here. HexLens checks the bytes on this device and keeps the current file in memory only.</p>${renderFileIngress()}<p class="drop-hint">Drop one PNG or WAV file · directories and multiple files are not accepted.</p>${renderNotice()}</div>
       </section>
     </main>
   `;
@@ -118,16 +124,24 @@ function setNotice(kind: NoticeKind, message: string, origin = view): void {
 }
 
 function rejectionMessage(code: 'unsupported_format' | 'limit_reached' | 'invalid_input'): string {
-  if (code === 'limit_reached') return 'That file is larger than the local safety limit. Choose a PNG under 25 MiB; your current Inspection is still open.';
-  if (code === 'unsupported_format') return 'This file does not have a PNG signature. Choose a PNG file or try the Sample; your current Inspection is still open.';
-  return 'That input could not be opened. Choose one PNG file; your current Inspection is still open.';
+  if (code === 'limit_reached') return 'That file is larger than the local safety limit. Choose a PNG or WAV under 25 MiB; your current Inspection is still open.';
+  if (code === 'unsupported_format') return 'This file does not have a PNG signature or RIFF/WAVE signature. Choose one supported file or try a Sample; your current Inspection is still open.';
+  return 'That input could not be opened. Choose one PNG or WAV file; your current Inspection is still open.';
+}
+
+function initialSelection(inspection: Inspection): ByteSpan {
+  const first = inspection.structures[0]?.span;
+  const firstField = inspection.structures[0]?.fields[0]?.span;
+  return firstField ? { ...firstField } : first ? { ...first } : { offset: 0, length: Math.min(8, inspection.bytes.length) };
 }
 
 type LocalParseResult = FileJobParseResult<Inspection>;
 
 const fileJobs = new FileJobController<Inspection>(undefined, async (bytes, file): Promise<LocalParseResult> => {
-  if (!hasPngSignature(bytes)) return { accepted: false, rejection: { code: 'unsupported_format' } };
-  return { accepted: true, value: inspectPng(bytes, file.name, { mimeType: file.type }) };
+  const detected = detectFormat(bytes);
+  if (detected !== 'png' && detected !== 'wav') return { accepted: false, rejection: { code: 'unsupported_format' } };
+  const inspection = inspectDetected(bytes, file.name, { mimeType: file.type });
+  return inspection ? { accepted: true, value: inspection } : { accepted: false, rejection: { code: 'unsupported_format' } };
 });
 
 function startFileJob(file: File, origin: View): void {
@@ -151,7 +165,7 @@ function startFileJob(file: File, origin: View): void {
       view = 'inspect';
       if (origin === 'landing') window.history.pushState(null, '', '/inspect');
       else window.history.replaceState(null, '', '/inspect');
-      operation = { phase: 'ready', origin: 'inspect', notice: { kind: 'success', message: `Opened ${acceptedFile.type === 'image/png' ? 'a local PNG' : 'a local file as PNG'}. File data remains in memory only.` } };
+      operation = { phase: 'ready', origin: 'inspect', notice: { kind: 'success', message: `Opened a local ${formatLabel(inspection.format)}. File data remains in memory only.` } };
       render();
       revokePreview(previous);
     },
@@ -216,7 +230,7 @@ function handleDrop(event: DragEvent): void {
   mount.classList.remove('is-drag-active');
   const selectionFromDrop = classifyDrop(event.dataTransfer);
   if (selectionFromDrop.kind === 'directory') {
-    setNotice('error', 'Folders are not supported. Drop one PNG file; your current Inspection is still open.');
+    setNotice('error', 'Folders are not supported. Drop one PNG or WAV file; your current Inspection is still open.');
     return;
   }
   if (selectionFromDrop.kind === 'multiple') {
@@ -224,7 +238,7 @@ function handleDrop(event: DragEvent): void {
     return;
   }
   if (selectionFromDrop.kind !== 'file' || !selectionFromDrop.file) {
-    setNotice('error', 'Drop one PNG file. Your current Inspection is still open.');
+    setNotice('error', 'Drop one PNG or WAV file. Your current Inspection is still open.');
     return;
   }
   startFileJob(selectionFromDrop.file, view);
@@ -740,7 +754,7 @@ function renderRoute(): void {
   }
 
   const params = new URLSearchParams(window.location.search);
-  if (params.get('sample') === 'png') {
+  if (params.get('sample') === 'png' || params.get('sample') === 'wav') {
     fileJobs.cancel();
     revokePreview(session);
     session = sampleSession();

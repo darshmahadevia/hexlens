@@ -1,4 +1,4 @@
-export type FormatId = 'png';
+export type FormatId = 'png' | 'wav';
 
 export interface ByteSpan {
   offset: number;
