@@ -20,8 +20,8 @@ import {
   type SelectionResolution,
 } from './domain/byte-grid.ts';
 import { spanIntersects, spanLabel } from './domain/inspection.ts';
-import { detectFormat, inspectDetected } from './format.ts';
-import { FileJobController, type FileJobParseResult } from './file-session.ts';
+import { createRawInspection, detectFormat, INSPECTION_LIMITS, inspectDetected } from './format.ts';
+import { FileJobController, FILE_JOB_LIMITS, type FileJobParseResult } from './file-session.ts';
 import { sampleInspection, PNG_SAMPLE_BASE64, wavSampleInspection, WAV_SAMPLE_BASE64 } from './sample.ts';
 
 const app = document.querySelector<HTMLDivElement>('#app');
@@ -33,7 +33,7 @@ const sample = sampleInspection();
 const wavSample = wavSampleInspection();
 const GRID_ROW_HEIGHT = 48;
 const GRID_OVERSCAN = 5;
-const MAX_LOCAL_FILE_BYTES = 25 * 1024 * 1024;
+const MAX_LOCAL_FILE_BYTES = INSPECTION_LIMITS.maxBytes;
 const PNG_TYPED_CHUNKS = new Set(['IHDR', 'PLTE', 'IDAT', 'IEND', 'tEXt', 'iTXt', 'gAMA', 'sRGB', 'tRNS', 'pHYs']);
 const SELECTION_ANNOUNCEMENT_DELAY = 180;
 
@@ -47,9 +47,10 @@ interface Notice {
 }
 
 interface OperationState {
-  phase: 'ready' | 'reading' | 'parsing';
+  phase: 'ready' | 'reading' | 'parsing' | 'slow' | 'aborted' | 'unsupported' | 'limit-reached' | 'application-error';
   origin: View;
   notice?: Notice;
+  jobId?: number;
 }
 
 interface InspectionSession {
@@ -108,13 +109,15 @@ function formatValue(value: string | number): string {
 }
 
 function formatLabel(format: FormatId): string {
-  return format === 'wav' ? 'WAV' : 'PNG';
+  if (format === 'wav') return 'WAV';
+  if (format === 'png') return 'PNG';
+  return 'unknown Format';
 }
 
 function sourceDataUrl(format: FormatId): string {
   return format === 'wav'
     ? `data:audio/wav;base64,${WAV_SAMPLE_BASE64}`
-    : `data:image/png;base64,${PNG_SAMPLE_BASE64}`;
+    : format === 'png' ? `data:image/png;base64,${PNG_SAMPLE_BASE64}` : '';
 }
 
 function sampleSession(inspection: Inspection): InspectionSession {
@@ -177,11 +180,11 @@ function initialSelection(inspection: Inspection): ByteSpan {
 
 type LocalParseResult = FileJobParseResult<Inspection>;
 
-const fileJobs = new FileJobController<Inspection>(undefined, async (bytes, file): Promise<LocalParseResult> => {
+const fileJobs = new FileJobController<Inspection>(undefined, async (bytes, file, signal): Promise<LocalParseResult> => {
   const detected = detectFormat(bytes);
-  if (detected !== 'png' && detected !== 'wav') return { accepted: false, rejection: { code: 'unsupported_format' } };
-  const inspection = inspectDetected(bytes, file.name, { mimeType: file.type });
-  return inspection ? { accepted: true, value: inspection } : { accepted: false, rejection: { code: 'unsupported_format' } };
+  if (detected !== 'png' && detected !== 'wav') return { accepted: false, rejection: { code: bytes.length > MAX_LOCAL_FILE_BYTES ? 'limit_reached' : 'unsupported_format' } };
+  const inspection = inspectDetected(bytes, file.name, { mimeType: file.type, signal });
+  return { accepted: true, value: inspection };
 });
 
 function startFileJob(file: File, origin: View): void {
@@ -195,8 +198,25 @@ function startFileJob(file: File, origin: View): void {
   const jobId = fileJobs.start(file, {
     onPhase: (phase, callbackJobId) => {
       if (!fileJobs.isActive(callbackJobId)) return;
-      operation = { phase, origin };
+      operation = { phase, origin, jobId: callbackJobId };
       render();
+    },
+    onSlow: (callbackJobId) => {
+      if (!fileJobs.isActive(callbackJobId)) return;
+      operation = { phase: 'slow', origin, jobId: callbackJobId };
+      render();
+      publishImmediateAnnouncement(`Local opening is taking longer than ${FILE_JOB_LIMITS.slowNoticeMs / 1000} seconds. Abort remains available.`);
+    },
+    onAborted: (callbackJobId) => {
+      operation = { phase: 'aborted', origin, jobId: callbackJobId, notice: { kind: 'info', message: 'Opening was aborted. Your current Inspection is still open.' } };
+      render();
+      publishImmediateAnnouncement('Opening was aborted. Your current Inspection is still open.');
+    },
+    onTerminated: (callbackJobId) => {
+      if (operation.jobId !== callbackJobId || operation.phase !== 'aborted') return;
+      operation = { phase: 'ready', origin, notice: { kind: 'info', message: 'The local parser did not stop immediately; its stale result was discarded safely.' } };
+      render();
+      publishImmediateAnnouncement('The local parser did not stop immediately; its stale result was discarded safely.');
     },
     onAccepted: (inspection, acceptedFile, callbackJobId) => {
       if (!fileJobs.isActive(callbackJobId)) return;
@@ -206,18 +226,54 @@ function startFileJob(file: File, origin: View): void {
       view = 'inspect';
       if (origin === 'landing') window.history.pushState(null, '', '/inspect');
       else window.history.replaceState(null, '', '/inspect');
-      operation = { phase: 'ready', origin: 'inspect', notice: { kind: 'success', message: `Opened a local ${formatLabel(inspection.format)}. File data remains in memory only.` } };
+      const status = inspection.status ?? (inspection.state === 'ready' ? 'ready' : 'partial');
+      const message = status === 'unsupported'
+        ? 'Unsupported Format. Raw bytes remain available; no semantic claims were made.'
+        : status === 'limit-reached'
+          ? 'The local safety limit stopped parsing. The Inspection is explicitly incomplete.'
+          : status === 'aborted'
+            ? 'Opening was aborted before semantic output was complete.'
+            : `Opened a local ${formatLabel(inspection.format)}. File data remains in memory only.`;
+      operation = { phase: 'ready', origin: 'inspect', jobId: callbackJobId, notice: { kind: status === 'ready' ? 'success' : 'info', message } };
       render();
-      publishImmediateAnnouncement(`Opened a local ${formatLabel(inspection.format)}. File data remains in memory only.`);
+      publishImmediateAnnouncement(message);
       revokePreview(previous);
     },
     onRejected: (rejection, _rejectedFile, callbackJobId) => {
       if (!fileJobs.isActive(callbackJobId)) return;
-      setNotice('error', rejectionMessage(rejection.code), origin);
+      const message = rejection.code === 'unsupported_format'
+        ? 'Unsupported Format. The file does not have a PNG signature or RIFF/WAVE signature; your current Inspection is still open.'
+        : rejectionMessage(rejection.code);
+      operation = {
+        phase: rejection.code === 'unsupported_format' ? 'unsupported' : 'limit-reached',
+        origin,
+        jobId: callbackJobId,
+        notice: { kind: 'error', message },
+      };
+      render();
+      publishImmediateAnnouncement(message);
     },
-    onError: (callbackJobId) => {
+    onError: (callbackJobId, failedFile, failedBytes) => {
       if (!fileJobs.isActive(callbackJobId)) return;
-      setNotice('error', 'The file could not be read. Your current Inspection is still open.', origin);
+      if (failedBytes && failedBytes.length <= MAX_LOCAL_FILE_BYTES && failedFile) {
+        const previous = session;
+        session = {
+          kind: 'local',
+          inspection: createRawInspection(failedBytes, failedFile.name, 'application-error'),
+          previewUrl: undefined,
+        };
+        view = 'inspect';
+        if (origin === 'landing') window.history.pushState(null, '', '/inspect');
+        else window.history.replaceState(null, '', '/inspect');
+        operation = { phase: 'ready', origin: 'inspect', jobId: callbackJobId, notice: { kind: 'error', message: 'The application could not complete semantic parsing. The raw-byte fallback is bounded; no semantic output was published.' } };
+        render();
+        publishImmediateAnnouncement('The application could not complete semantic parsing. The raw-byte fallback is bounded; no semantic output was published.');
+        revokePreview(previous);
+      } else {
+        operation = { phase: 'application-error', origin, jobId: callbackJobId, notice: { kind: 'error', message: 'The application could not complete parsing. Semantic output was discarded and no raw-byte fallback was retained.' } };
+        render();
+        publishImmediateAnnouncement('The application could not complete parsing. Semantic output was discarded and no raw-byte fallback was retained.');
+      }
     },
   });
 
@@ -227,7 +283,6 @@ function startFileJob(file: File, origin: View): void {
 function cancelFileJob(): void {
   const canceled = fileJobs.cancel();
   if (canceled === undefined) return;
-  setNotice('info', 'Opening was canceled. Your current Inspection is still open.');
 }
 
 function handlePickerChange(input: HTMLInputElement): void {
@@ -289,6 +344,10 @@ function handleDrop(event: DragEvent): void {
 
 function ensurePreview(target: InspectionSession): void {
   if (target.kind !== 'local' || target.previewUrl || target.previewFailed) return;
+  if (target.inspection.format !== 'png' && target.inspection.format !== 'wav') {
+    target.previewFailed = true;
+    return;
+  }
   if (typeof URL.createObjectURL !== 'function') {
     target.previewFailed = true;
     return;
@@ -320,21 +379,42 @@ function renderNotice(): string {
 function operationLabel(inspection?: Inspection): string {
   if (operation.phase === 'reading') return 'Reading local file…';
   if (operation.phase === 'parsing') return 'Parsing locally…';
+  if (operation.phase === 'slow') return `Working locally… this is taking longer than ${FILE_JOB_LIMITS.slowNoticeMs / 1000} seconds`;
+  if (operation.phase === 'aborted') return 'Opening aborted · current Inspection preserved';
+  if (operation.phase === 'unsupported') return 'Unsupported Format · current Inspection preserved';
+  if (operation.phase === 'limit-reached') return 'Limit reached · current Inspection preserved';
+  if (operation.phase === 'application-error') return 'Application error · semantic output discarded';
   if (!inspection) return 'Ready for one local PNG or WAV file';
+  const status = inspection.status ?? (inspection.state === 'ready' ? 'ready' : 'partial');
+  if (status === 'unsupported') return 'Unsupported Format · raw bytes available without semantic parsing';
+  if (status === 'limit-reached') return `Limit reached · incomplete ${formatLabel(inspection.format)} Inspection`;
+  if (status === 'aborted') return `Aborted · incomplete ${formatLabel(inspection.format)} Inspection`;
+  if (status === 'application-error') return 'Application error · raw-byte fallback only';
   const diagnosticCount = inspection.diagnostics.length;
   const suffix = diagnosticCount ? ` · ${diagnosticCount} Diagnostic${diagnosticCount === 1 ? '' : 's'}` : '';
-  return `${inspection.state === 'ready' ? 'Ready' : 'Partial Inspection'}${suffix} · ${formatLabel(inspection.format)} · file data stays in memory only`;
+  return `${status === 'ready' ? 'Ready' : 'Partial Inspection'}${suffix} · ${formatLabel(inspection.format)} · file data stays in memory only`;
 }
 
 function renderStatus(inspection?: Inspection): string {
-  const busy = operation.phase !== 'ready';
-  return `<div class="inspector-status${busy ? ' is-busy' : ''}" aria-live="polite" aria-atomic="true"><span class="status-dot" aria-hidden="true"></span><span>${operationLabel(inspection)}</span>${busy ? '<button class="status-cancel" type="button" data-cancel-job>Cancel opening</button>' : ''}</div><span class="sr-only" role="status" aria-live="polite" aria-atomic="true" data-testid="operation-announcement"></span>`;
+  const cancelable = operation.phase === 'reading' || operation.phase === 'parsing' || operation.phase === 'slow';
+  const busy = cancelable;
+  const operationStatus = operation.phase === 'unsupported' || operation.phase === 'limit-reached' || operation.phase === 'aborted' || operation.phase === 'application-error'
+    ? operation.phase
+    : undefined;
+  const status = operationStatus ?? inspection?.status ?? (inspection?.state === 'ready' ? 'ready' : inspection ? 'partial' : undefined);
+  const stateClass = status ? ` status-${status}` : '';
+  return `<div class="inspector-status${busy ? ' is-busy' : ''}${stateClass}" aria-live="polite" aria-atomic="true"><span class="status-dot" aria-hidden="true"></span><span>${operationLabel(inspection)}</span>${cancelable ? '<button class="status-cancel" type="button" data-cancel-job>Abort opening</button>' : ''}</div><span class="sr-only" role="status" aria-live="polite" aria-atomic="true" data-testid="operation-announcement"></span>`;
 }
 
 function renderDiagnostics(inspection: Inspection): string {
   if (!inspection.diagnostics.length) return '';
-  const items = inspection.diagnostics.map((diagnostic) => `<li><strong class="diagnostic-severity diagnostic-${diagnostic.severity}">${escapeHtml(diagnostic.severity)}</strong><code>${escapeHtml(diagnostic.code)}</code><span>${escapeHtml(diagnostic.message)}</span><small>${spanLabel(diagnostic.span)}</small></li>`).join('');
-  return `<section class="diagnostics" aria-labelledby="diagnostics-heading" data-testid="diagnostics"><div class="diagnostics-heading"><span id="diagnostics-heading">Diagnostics</span><span class="panel-rule" aria-hidden="true"></span></div><ul>${items}</ul></section>`;
+  const visible = inspection.diagnostics.slice(0, 24);
+  const safetyDiagnostic = inspection.diagnostics.find((diagnostic) => diagnostic.code === 'limit_reached');
+  if (safetyDiagnostic && !visible.some((diagnostic) => diagnostic.code === safetyDiagnostic.code)) visible.push(safetyDiagnostic);
+  const items = visible.map((diagnostic) => `<li><strong class="diagnostic-severity diagnostic-${diagnostic.severity}">${escapeHtml(diagnostic.severity)}</strong><code>${escapeHtml(diagnostic.code)}</code><span>${escapeHtml(diagnostic.message)}</span><small>${spanLabel(diagnostic.span)}</small></li>`).join('');
+  const hiddenCount = Math.max(0, inspection.diagnostics.length - visible.length);
+  const summary = hiddenCount > 0 ? `<p class="diagnostics-summary">Showing ${visible.length} of ${inspection.diagnostics.length} Diagnostics; the remainder stays in the Inspection contract.</p>` : '';
+  return `<section class="diagnostics" aria-labelledby="diagnostics-heading" data-testid="diagnostics"><div class="diagnostics-heading"><span id="diagnostics-heading">Diagnostics</span><span class="panel-rule" aria-hidden="true"></span></div><ul>${items}</ul>${summary}</section>`;
 }
 
 function renderByteStrip(inspection: Inspection, selection?: ByteSpan, interactive = false, dataPrefix = '', maxBytes?: number): string {

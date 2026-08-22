@@ -7,21 +7,26 @@ import type {
   Structure,
   UnmappedSpan,
 } from './inspection.ts';
+import {
+  GENERIC_DIAGNOSTIC_CODES,
+  INSPECTION_LIMITS,
+} from './inspection.ts';
 
 export const PNG_SIGNATURE = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
 
 /** The provisional safety budget from the product contract. */
 export const PNG_LIMITS = Object.freeze({
-  maxBytes: 25 * 1024 * 1024,
-  maxStructures: 100_000,
-  maxDiagnostics: 1_000,
+  maxBytes: INSPECTION_LIMITS.maxBytes,
+  maxStructures: INSPECTION_LIMITS.maxStructures,
+  maxDiagnostics: INSPECTION_LIMITS.maxDiagnostics,
 });
 
 /** Stable public Diagnostic identities and their byte-span policy. */
 export const PNG_DIAGNOSTIC_CODES = Object.freeze({
-  unsupportedFormat: 'unsupported_format',
-  extensionMismatch: 'extension_mismatch',
-  limitReached: 'limit_reached',
+  unsupportedFormat: GENERIC_DIAGNOSTIC_CODES.unsupportedFormat,
+  extensionMismatch: GENERIC_DIAGNOSTIC_CODES.extensionMismatch,
+  limitReached: GENERIC_DIAGNOSTIC_CODES.limitReached,
+  parseAborted: GENERIC_DIAGNOSTIC_CODES.parseAborted,
   truncatedChunk: 'truncated_chunk',
   invalidLength: 'invalid_length',
   invalidChunkType: 'invalid_chunk_type',
@@ -43,6 +48,7 @@ export const PNG_DIAGNOSTIC_SPAN_POLICY: Readonly<Record<string, string>> = Obje
   unsupported_format: 'Available signature prefix.',
   extension_mismatch: 'The eight-byte signature.',
   limit_reached: 'The first offset that could not be safely inspected.',
+  parse_aborted: 'The first offset not inspected when cancellation was observed.',
   truncated_chunk: 'All available bytes from the unsafe chunk offset.',
   invalid_length: 'The declared length field or complete offending envelope.',
   invalid_chunk_type: 'The four-byte chunk type field.',
@@ -62,6 +68,8 @@ export const PNG_DIAGNOSTIC_SPAN_POLICY: Readonly<Record<string, string>> = Obje
 
 export interface PngInspectionMetadata {
   mimeType?: string;
+  /** Optional cooperative cancellation for worker/adaptor callers. */
+  signal?: AbortSignal;
 }
 
 const KNOWN_TYPES = new Set(['IHDR', 'PLTE', 'IDAT', 'IEND', 'tEXt', 'iTXt', 'gAMA', 'sRGB', 'tRNS', 'pHYs']);
@@ -94,11 +102,21 @@ function bytesOf(bytes: Uint8Array, target: ByteSpan): number[] {
 }
 
 function ascii(bytes: Uint8Array, target: ByteSpan): string {
-  return String.fromCharCode(...bytesOf(bytes, target));
+  // Chunked conversion avoids the argument-stack limit for hostile text while
+  // preserving exact conversion for fixed-size identifiers.
+  const values = bytesOf(bytes, target);
+  let result = '';
+  for (let index = 0; index < values.length; index += 4096) {
+    result += String.fromCharCode(...values.slice(index, index + 4096));
+  }
+  return result;
 }
 
 function latin1(bytes: Uint8Array, target: ByteSpan): string {
-  return ascii(bytes, target);
+  const max = 8_192;
+  const safe = target.length > max ? span(target.offset, max) : target;
+  const value = ascii(bytes, safe);
+  return target.length > max ? `${value}…` : value;
 }
 
 function hexBytes(values: number[]): string {
@@ -232,6 +250,7 @@ function isValidKeyword(bytes: Uint8Array, target: ByteSpan): boolean {
 }
 
 function decodeUtf8(bytes: Uint8Array, target: ByteSpan): string | undefined {
+  if (target.length > 8_192) return undefined;
   try {
     const decoder = new TextDecoder('utf-8', { fatal: true });
     return decoder.decode(new Uint8Array(bytesOf(bytes, target)));
@@ -290,6 +309,10 @@ function parseTextFields(
 
   addField(fields, field(bytes, `${structureId}-keyword`, 'keyword', 'Keyword', keywordSpan, latin1(bytes, keywordSpan), 'Latin-1 text', 'The uncompressed text keyword.', 'n/a'));
   const textSpan = span(separator + 1, dataEnd - separator - 1);
+  if (textSpan.length > 8_192) {
+    addDiagnostic(PNG_DIAGNOSTIC_CODES.invalidChunkData, 'warning', `${type} text exceeds the bounded display length and remains opaque.`, textSpan);
+    return addOpaquePayload(bytes, fields, structureId, textSpan.offset, textSpan.length, 'Opaque text Payload', 'The text value is too large to decode into the Field inspector.');
+  }
   addField(fields, field(bytes, `${structureId}-text`, 'text', 'Text', textSpan, latin1(bytes, textSpan), 'Latin-1 text', 'The uncompressed text value.', 'n/a'));
   return undefined;
 }
@@ -345,6 +368,10 @@ function parseITXtFields(
   addField(fields, field(bytes, `${structureId}-translated-keyword`, 'translatedKeyword', 'Translated keyword', translatedSpan, translatedKeyword, 'UTF-8 text', 'The optional translated keyword.', 'n/a'));
 
   const textSpan = span(translatedEnd + 1, dataEnd - translatedEnd - 1);
+  if (textSpan.length > 8_192) {
+    addDiagnostic(PNG_DIAGNOSTIC_CODES.invalidChunkData, 'warning', 'iTXt text exceeds the bounded display length and remains opaque.', textSpan);
+    return addOpaquePayload(bytes, fields, structureId, textSpan.offset, textSpan.length, 'Opaque text Payload', 'The text value is too large to decode into the Field inspector.');
+  }
   if (compressionFlag === 1) {
     addDiagnostic(PNG_DIAGNOSTIC_CODES.compressedTextOpaque, 'note', 'Compressed iTXt text remains opaque; HexLens does not decompress text.', textSpan);
     return addOpaquePayload(bytes, fields, structureId, textSpan.offset, textSpan.length, 'Opaque compressed text', 'Compressed iTXt Payload is retained without decompression.');
@@ -542,11 +569,24 @@ function addUnmapped(length: number, structures: Structure[]): UnmappedSpan[] {
 
 function inspectionId(bytes: Uint8Array): string {
   let hash = 2166136261;
-  for (const value of bytes) hash = Math.imul(hash ^ value, 16777619);
+  // Keep identity work bounded even when the caller hands us a source above
+  // the semantic byte budget. The full source remains available to the byte
+  // grid, but identity need not scan every byte before returning a limit.
+  const prefixLength = Math.min(bytes.length, 1_048_576);
+  for (let index = 0; index < prefixLength; index += 1) hash = Math.imul(hash ^ bytes[index], 16777619);
+  for (let index = Math.max(prefixLength, bytes.length - 1_024); index < bytes.length; index += 1) hash = Math.imul(hash ^ bytes[index], 16777619);
   return `png-${bytes.length}-${(hash >>> 0).toString(16)}`;
 }
 
-function baseInspection(bytes: Uint8Array, sourceName: string, structures: Structure[], diagnostics: Diagnostic[], complete: boolean): Inspection {
+function baseInspection(
+  bytes: Uint8Array,
+  sourceName: string,
+  structures: Structure[],
+  diagnostics: Diagnostic[],
+  complete: boolean,
+  status: Inspection['status'] = complete ? 'ready' : diagnostics.some((diagnostic) => diagnostic.code === PNG_DIAGNOSTIC_CODES.limitReached) ? 'limit-reached' : 'partial',
+  termination: Inspection['termination'] = complete ? 'complete' : status === 'limit-reached' ? 'limit-reached' : status === 'unsupported' ? 'unsupported' : status === 'aborted' ? 'aborted' : status === 'application-error' ? 'application-error' : 'partial',
+): Inspection {
   const fields = structures.flatMap((structure) => structure.fields);
   const payloads = structures.flatMap((structure) => structure.payload ? [structure.payload] : []);
   const unmappedSpans = addUnmapped(bytes.length, structures);
@@ -554,8 +594,9 @@ function baseInspection(bytes: Uint8Array, sourceName: string, structures: Struc
     id: inspectionId(bytes),
     format: 'png',
     state: complete ? 'ready' : 'partial',
+    status,
     complete,
-    termination: complete ? 'complete' : diagnostics.some((diagnostic) => diagnostic.code === PNG_DIAGNOSTIC_CODES.limitReached) ? 'limit-reached' : 'partial',
+    termination,
     limitReached: diagnostics.some((diagnostic) => diagnostic.code === PNG_DIAGNOSTIC_CODES.limitReached),
     sourceName,
     bytes,
@@ -593,14 +634,14 @@ export function inspectPng(input: Uint8Array, sourceName = 'hexlens-sample.png',
 
   if (!hasPngSignature(bytes)) {
     const target = span(0, Math.min(bytes.length, PNG_SIGNATURE.length));
-    const inspection = baseInspection(bytes, sourceName, [], [{ code: PNG_DIAGNOSTIC_CODES.unsupportedFormat, severity: 'error', message: 'The file does not begin with the PNG signature.', span: target }], false);
+    const inspection = baseInspection(bytes, sourceName, [], [{ code: PNG_DIAGNOSTIC_CODES.unsupportedFormat, severity: 'error', message: 'The file does not begin with the PNG signature.', span: target }], false, 'unsupported', 'unsupported');
     return inspection;
   }
 
   structures.push(signatureStructure(bytes));
   if (bytes.length > PNG_LIMITS.maxBytes) {
     addDiagnostic(PNG_DIAGNOSTIC_CODES.limitReached, 'error', 'The PNG exceeds the 25 MiB local safety limit; only the signature was inspected.', span(PNG_LIMITS.maxBytes, 0));
-    return baseInspection(bytes, sourceName, structures, diagnostics, false);
+    return baseInspection(bytes, sourceName, structures, diagnostics, false, 'limit-reached', 'limit-reached');
   }
 
   const extension = extensionOf(sourceName);
@@ -614,6 +655,11 @@ export function inspectPng(input: Uint8Array, sourceName = 'hexlens-sample.png',
   let unsafeStop = false;
 
   while (offset < bytes.length) {
+    if (metadata.signal?.aborted) {
+      addDiagnostic(PNG_DIAGNOSTIC_CODES.parseAborted, 'warning', 'Parsing was canceled before the next PNG chunk could be inspected.', span(Math.min(offset, bytes.length), 0));
+      unsafeStop = true;
+      break;
+    }
     if (diagnosticLimitReached) {
       unsafeStop = true;
       break;
@@ -729,5 +775,10 @@ export function inspectPng(input: Uint8Array, sourceName = 'hexlens-sample.png',
   }
 
   const complete = !unsafeStop && !diagnosticLimitReached && context.seenIhdr && context.seenIdat && context.seenIend && !diagnostics.some((diagnostic) => diagnostic.severity === 'error');
-  return baseInspection(bytes, sourceName, structures, diagnostics, complete);
+  const status: Inspection['status'] = diagnostics.some((diagnostic) => diagnostic.code === PNG_DIAGNOSTIC_CODES.limitReached)
+    ? 'limit-reached'
+    : diagnostics.some((diagnostic) => diagnostic.code === PNG_DIAGNOSTIC_CODES.parseAborted)
+      ? 'aborted'
+      : complete ? 'ready' : 'partial';
+  return baseInspection(bytes, sourceName, structures, diagnostics, complete, status);
 }

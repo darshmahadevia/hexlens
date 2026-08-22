@@ -190,6 +190,11 @@ h1 { max-width: 12ch; margin: 36px 0 22px; font-size: clamp(3.2rem, 6vw, 6rem); 
 .inspector-status.is-busy { color: var(--oxide-dark); }
 .status-dot { display: inline-block; width: 8px; height: 8px; border: 1px solid var(--verdigris); border-radius: 50%; background: var(--verdigris); }
 .inspector-status.is-busy .status-dot { border-color: var(--oxide); background: var(--oxide); }
+.inspector-status.status-partial, .inspector-status.status-limit-reached, .inspector-status.status-unsupported, .inspector-status.status-application-error { color: var(--oxide-dark); }
+.inspector-status.status-unsupported { color: var(--ink-soft); }
+.inspector-status.status-aborted { color: var(--oxide-dark); }
+.inspector-status.status-limit-reached .status-dot, .inspector-status.status-application-error .status-dot { border-color: var(--oxide); background: var(--oxide); }
+.inspector-status.status-unsupported .status-dot { border-color: var(--ink-soft); background: transparent; }
 .status-cancel { border: 0; border-bottom: 1px solid currentColor; padding: 2px 0; background: transparent; color: inherit; cursor: pointer; font: inherit; letter-spacing: inherit; text-transform: uppercase; }
 .status-cancel:hover { color: var(--oxide); }
 .inspector-ingress { position: relative; z-index: 1; display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 14px clamp(30px, 4.5vw, 72px); border-bottom: 1px solid rgba(29, 40, 38, 0.22); }
@@ -210,6 +215,7 @@ h1 { max-width: 12ch; margin: 36px 0 22px; font-size: clamp(3.2rem, 6vw, 6rem); 
 .diagnostics ul { display: grid; gap: 8px; margin: 10px 0 0; padding: 0 0 15px; list-style: none; border-bottom: 1px solid rgba(29, 40, 38, 0.22); }
 .diagnostics li { display: grid; grid-template-columns: max-content max-content minmax(0, 1fr) max-content; gap: 12px; align-items: baseline; color: var(--ink-soft); font-size: 0.78rem; line-height: 1.4; }
 .diagnostics code, .diagnostics small, .diagnostic-severity { color: var(--oxide-dark); font: 0.65rem var(--mono); letter-spacing: 0.03em; }
+.diagnostics-summary { margin: 10px 0 0; color: var(--ink-soft); font: 0.64rem var(--mono); letter-spacing: 0.02em; }
 .diagnostic-severity { text-transform: uppercase; }
 .diagnostic-note { color: var(--verdigris); }
 .diagnostic-warning { color: var(--oxide-dark); }
