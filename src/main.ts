@@ -303,8 +303,13 @@ function ensurePreview(target: InspectionSession): void {
   }
 }
 
-function renderFileIngress(): string {
-  return `<div class="file-ingress" data-testid="file-ingress"><button class="button button-secondary file-picker" type="button" data-open-picker aria-controls="local-file-input">Open a file <span class="file-picker-detail">PNG or WAV</span></button><input class="file-picker-input" id="local-file-input" type="file" accept=".png,.wav,image/png,audio/wav" aria-label="Choose one local PNG file or WAV file" data-testid="local-file-input" tabindex="-1" /><span class="file-ingress-note">One file · stays in memory only</span></div>`;
+function renderFileIngress(disabled = false): string {
+  const input = disabled
+    ? ''
+    : '<input class="file-picker-input" id="local-file-input" type="file" accept=".png,.wav,image/png,audio/wav" aria-label="Choose one local PNG file or WAV file" data-testid="local-file-input" tabindex="-1" />';
+  const buttonState = disabled ? ' disabled' : ' data-open-picker aria-controls="local-file-input"';
+  const note = disabled ? 'Desktop only · use a bundled Sample on phone' : 'One file · stays in memory only';
+  return `<div class="file-ingress" data-testid="file-ingress"><button class="button button-secondary file-picker" type="button"${buttonState}>Open a file <span class="file-picker-detail">PNG or WAV</span></button>${input}<span class="file-ingress-note">${note}</span></div>`;
 }
 
 function renderNotice(): string {
@@ -414,7 +419,7 @@ function renderLanding(nextSelection: ByteSpan = landingSelection, focusSelector
             <p class="support-copy">No uploads. No guesswork.<br />Just bytes, offsets, and meaning.</p>
             <div class="landing-actions">
               <a class="button button-primary" href="/inspect?sample=png" data-testid="try-sample">Try the sample <span aria-hidden="true">→</span></a>
-              ${narrow ? '' : renderFileIngress()}
+              ${renderFileIngress(narrow)}
             </div>
             ${narrow ? '<p class="sample-only-note">Phone view · open a bundled PNG or WAV Sample.</p>' : '<p class="drop-hint" data-testid="drop-hint">Or drop one PNG or WAV file onto this sheet.</p>'}
             ${renderNotice()}
