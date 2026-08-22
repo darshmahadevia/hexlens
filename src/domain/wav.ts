@@ -1,4 +1,4 @@
-import type { ByteSpan, Diagnostic, Field, Inspection, Structure } from './inspection.ts';
+import type { ByteSpan, Diagnostic, Field, Inspection, Structure, UnmappedSpan } from './inspection.ts';
 
 export const RIFF_SIGNATURE = new Uint8Array([0x52, 0x49, 0x46, 0x46]);
 export const WAVE_FORM = new Uint8Array([0x57, 0x41, 0x56, 0x45]);
@@ -149,6 +149,58 @@ function diagnostic(code: string, severity: Diagnostic['severity'], message: str
   return { code, severity, message, span };
 }
 
+function unmappedSpans(length: number, structures: Structure[]): UnmappedSpan[] {
+  const covered = structures
+    .map((structure) => structure.span)
+    .filter((target) => target.length > 0)
+    .sort((a, b) => a.offset - b.offset);
+  const result: UnmappedSpan[] = [];
+  let cursor = 0;
+  for (const target of covered) {
+    const start = Math.max(0, Math.min(length, target.offset));
+    const end = Math.max(start, Math.min(length, target.offset + target.length));
+    if (start > cursor) {
+      const gap = { offset: cursor, length: start - cursor };
+      result.push({ id: `wav-unmapped-${result.length + 1}`, span: gap, ...gap, reason: 'Bytes not claimed by a parsed Structure.' });
+    }
+    cursor = Math.max(cursor, end);
+  }
+  if (cursor < length) {
+    const gap = { offset: cursor, length: length - cursor };
+    result.push({ id: `wav-unmapped-${result.length + 1}`, span: gap, ...gap, reason: 'Bytes not claimed by a parsed Structure.' });
+  }
+  return result;
+}
+
+function inspectionResult(
+  id: string,
+  bytes: Uint8Array,
+  sourceName: string,
+  structures: Structure[],
+  diagnostics: Diagnostic[],
+): Inspection {
+  const unmapped = unmappedSpans(bytes.length, structures);
+  const complete = !diagnostics.some((item) => item.severity === 'error');
+  return {
+    id,
+    format: 'wav',
+    state: complete ? 'ready' : 'partial',
+    complete,
+    termination: complete ? 'complete' : 'partial',
+    limitReached: false,
+    sourceName,
+    bytes,
+    structures,
+    fields: structures.flatMap((structure) => structure.fields),
+    payloads: structures.flatMap((structure) => structure.payload ? [structure.payload] : []),
+    unmappedSpans: unmapped,
+    unmapped,
+    bitFields: [],
+    derivedValues: [],
+    diagnostics,
+  };
+}
+
 export function inspectWav(bytes: Uint8Array, sourceName = 'hexlens-sample.wav', _metadata: WavInspectionMetadata = {}): Inspection {
   const diagnostics: Diagnostic[] = [];
   const structures: Structure[] = [];
@@ -158,15 +210,13 @@ export function inspectWav(bytes: Uint8Array, sourceName = 'hexlens-sample.wav',
     const message = hasRiffContainer(bytes)
       ? 'The RIFF container is not a RIFF/WAVE file.'
       : 'The file does not begin with the RIFF/WAVE signature.';
-    return {
-      id: inspectionId,
-      format: 'wav',
-      state: 'partial',
-      sourceName,
+    return inspectionResult(
+      inspectionId,
       bytes,
-      structures: [],
-      diagnostics: [diagnostic('unsupported_format', 'error', message, { offset: 0, length: Math.min(bytes.length, 12) })],
-    };
+      sourceName,
+      [],
+      [diagnostic('unsupported_format', 'error', message, { offset: 0, length: Math.min(bytes.length, 12) })],
+    );
   }
 
   const declaredLength = u32(bytes, 4);
@@ -217,13 +267,5 @@ export function inspectWav(bytes: Uint8Array, sourceName = 'hexlens-sample.wav',
     diagnostics.unshift(diagnostic('extension_mismatch', 'note', 'The filename extension does not match the RIFF/WAVE signature. Content determined this Format.', { offset: 0, length: 12 }));
   }
 
-  return {
-    id: inspectionId,
-    format: 'wav',
-    state: diagnostics.some((item) => item.severity === 'error') ? 'partial' : 'ready',
-    sourceName,
-    bytes,
-    structures,
-    diagnostics,
-  };
+  return inspectionResult(inspectionId, bytes, sourceName, structures, diagnostics);
 }

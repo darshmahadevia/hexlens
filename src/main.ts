@@ -34,6 +34,7 @@ const wavSample = wavSampleInspection();
 const GRID_ROW_HEIGHT = 48;
 const GRID_OVERSCAN = 5;
 const MAX_LOCAL_FILE_BYTES = 25 * 1024 * 1024;
+const PNG_TYPED_CHUNKS = new Set(['IHDR', 'PLTE', 'IDAT', 'IEND', 'tEXt', 'iTXt', 'gAMA', 'sRGB', 'tRNS', 'pHYs']);
 
 type View = 'landing' | 'inspect';
 type SessionKind = 'sample' | 'local';
@@ -54,6 +55,7 @@ interface InspectionSession {
   kind: SessionKind;
   inspection: Inspection;
   previewUrl?: string;
+  previewFailed?: boolean;
 }
 
 const currentView = (): View => window.location.pathname === '/inspect' ? 'inspect' : 'landing';
@@ -246,7 +248,11 @@ function handleDrop(event: DragEvent): void {
 }
 
 function ensurePreview(target: InspectionSession): void {
-  if (target.kind !== 'local' || target.previewUrl || typeof URL.createObjectURL !== 'function') return;
+  if (target.kind !== 'local' || target.previewUrl || target.previewFailed) return;
+  if (typeof URL.createObjectURL !== 'function') {
+    target.previewFailed = true;
+    return;
+  }
   const copy = new Uint8Array(target.inspection.bytes);
   target.previewUrl = URL.createObjectURL(new Blob([copy.buffer], { type: target.inspection.format === 'wav' ? 'audio/wav' : 'image/png' }));
 }
@@ -276,7 +282,7 @@ function renderStatus(inspection?: Inspection): string {
 
 function renderDiagnostics(inspection: Inspection): string {
   if (!inspection.diagnostics.length) return '';
-  const items = inspection.diagnostics.map((diagnostic) => `<li><code>${escapeHtml(diagnostic.code)}</code><span>${escapeHtml(diagnostic.message)}</span><small>${spanLabel(diagnostic.span)}</small></li>`).join('');
+  const items = inspection.diagnostics.map((diagnostic) => `<li><strong class="diagnostic-severity diagnostic-${diagnostic.severity}">${escapeHtml(diagnostic.severity)}</strong><code>${escapeHtml(diagnostic.code)}</code><span>${escapeHtml(diagnostic.message)}</span><small>${spanLabel(diagnostic.span)}</small></li>`).join('');
   return `<section class="diagnostics" aria-labelledby="diagnostics-heading" data-testid="diagnostics"><div class="diagnostics-heading"><span id="diagnostics-heading">Diagnostics</span><span class="panel-rule" aria-hidden="true"></span></div><ul>${items}</ul></section>`;
 }
 
@@ -308,7 +314,9 @@ function renderByteStrip(inspection: Inspection, selection?: ByteSpan, interacti
 function renderStructureLabels(inspection: Inspection, selection?: ByteSpan, interactive = false): string {
   return inspection.structures.map((structure) => {
     const active = selection ? spanIntersects(structure.span, selection) : false;
-    const tag = structure.kind === 'payload' ? 'Payload' : structure.kind === 'header' ? 'Header' : 'Structure';
+    const tag = structure.type !== undefined && !PNG_TYPED_CHUNKS.has(structure.type)
+      ? 'Unknown chunk'
+      : structure.kind === 'payload' ? 'Payload' : structure.kind === 'header' ? 'Header' : 'Structure';
     const content = `<span class="structure-index">${spanLabel(structure.span)}</span><span class="structure-copy"><strong>${escapeHtml(structure.label)}</strong><small>${tag} · ${structure.span.length} bytes</small></span>`;
     return interactive
       ? `<button class="structure-row${active ? ' is-selected' : ''}" type="button" data-structure-id="${escapeHtml(structure.id)}" aria-pressed="${active}">${content}</button>`
@@ -602,7 +610,7 @@ function renderInspector(target: InspectionSession, requestedSelection: ByteSpan
   const selectedSummary = `Selected ${selectedLabel}, offset ${selection.offset}, length ${selection.length} bytes.`;
   const displayFormat = formatLabel(inspection.format);
   const sourceName = inspection.sourceName || 'Unnamed local file';
-  const preview = target.previewUrl
+  const preview = target.previewUrl && !target.previewFailed
     ? inspection.format === 'wav'
       ? `<audio controls preload="metadata" src="${escapeHtml(target.previewUrl)}" aria-label="The WAV rendered as the original file"></audio>`
       : `<img src="${escapeHtml(target.previewUrl)}" alt="The ${displayFormat} rendered as the original file" />`
@@ -662,6 +670,14 @@ function renderInspector(target: InspectionSession, requestedSelection: ByteSpan
       if (next) renderInspector(target, next.span, { kind: 'field', id: next.id });
     });
   });
+
+  const previewImage = mount.querySelector<HTMLImageElement>('.source-preview img');
+  previewImage?.addEventListener('error', () => {
+    if (target.previewFailed) return;
+    target.previewFailed = true;
+    revokePreview(target);
+    renderInspector(target, selection);
+  }, { once: true });
 
   const offsetForm = mount.querySelector<HTMLFormElement>('[data-testid="goto-form"]');
   const offsetInput = mount.querySelector<HTMLInputElement>('#goto-offset');
