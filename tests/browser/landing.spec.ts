@@ -41,7 +41,7 @@ test('the educational route opens Info and follows the selected Structure', asyn
 });
 
 test('the landing sheet remains keyboard-usable, motion-safe, and within the narrow viewport', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
+  await page.setViewportSize({ width: 320, height: 568 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/');
 
@@ -50,6 +50,18 @@ test('the landing sheet remains keyboard-usable, motion-safe, and within the nar
   await expect(page.getByTestId('try-sample')).toHaveCount(0);
   await expect(page.getByRole('button', { name: /Open a file/ })).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await expect.poll(() => page.evaluate(() => {
+    const viewportWidth = document.documentElement.clientWidth;
+
+    return Array.from(document.querySelectorAll<HTMLElement>('[data-landing-byte-offset]')).every((cell) => {
+      const bounds = cell.getBoundingClientRect();
+      return bounds.left >= -1 && bounds.right <= viewportWidth + 1;
+    });
+  })).toBe(true);
+  await expect.poll(() => page.evaluate(() => {
+    const evidence = document.querySelector<HTMLElement>('.editorial-connection-rows code');
+    return Boolean(evidence && evidence.scrollWidth <= evidence.clientWidth + 1);
+  })).toBe(true);
   await expect(page.getByText('Inspect PNG and WAV files without sending a byte away from your browser.')).toBeVisible();
   await expect(page).toHaveURL(/\/$/);
 });

@@ -2572,6 +2572,33 @@ select { caret-color: var(--oxide); }
 @media (max-width: 620px) {
   .manuscript-progress { top: 63px; }
   .editorial-proof.sample-plate::before { left: 8px; }
+  .editorial-landing,
+  .editorial-landing .landing-sheet,
+  .editorial-hero,
+  .editorial-manifesto,
+  .editorial-proof.sample-plate,
+  .editorial-connection,
+  .editorial-coverage,
+  .editorial-teach,
+  .editorial-close { min-width: 0; max-width: 100%; }
+  .editorial-proof .byte-row { min-width: 0; }
+  .editorial-proof .byte-cells {
+    grid-template-columns: repeat(16, minmax(0, 1fr));
+    min-width: 0;
+    overflow: visible;
+  }
+  .editorial-proof .byte-cell {
+    width: auto;
+    min-width: 0;
+    padding-inline: 0;
+    font-size: clamp(0.46rem, 2.1vw, 0.62rem);
+  }
+  .editorial-connection-rows code {
+    overflow: visible;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+    white-space: normal;
+  }
   .manuscript-path { grid-template-columns: minmax(0, 1fr); }
   .manuscript-path::before { top: 22px; bottom: 22px; left: 4px; width: 1px; height: auto; }
   .manuscript-path li,
