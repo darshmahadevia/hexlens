@@ -2,10 +2,26 @@ import type { ByteSpan, Diagnostic, Field, Inspection, Structure, UnmappedSpan }
 
 export const RIFF_SIGNATURE = new Uint8Array([0x52, 0x49, 0x46, 0x46]);
 export const WAVE_FORM = new Uint8Array([0x57, 0x41, 0x56, 0x45]);
+export const RIFX_SIGNATURE = new Uint8Array([0x52, 0x49, 0x46, 0x58]);
+export const RF64_SIGNATURE = new Uint8Array([0x52, 0x46, 0x36, 0x34]);
+
+/** The only audio format tags interpreted by the bounded WAV contract. */
+export const WAVE_FORMAT_PCM = 0x0001;
+export const WAVE_FORMAT_IEEE_FLOAT = 0x0003;
+export const WAVE_FORMAT_EXTENSIBLE = 0xfffe;
 
 export interface WavInspectionMetadata {
   mimeType?: string;
 }
+
+const INFO_LABELS: Record<string, { name: string; label: string }> = {
+  INAM: { name: 'name', label: 'Name' },
+  IART: { name: 'artist', label: 'Artist' },
+  ICMT: { name: 'comment', label: 'Comment' },
+  ICRD: { name: 'creationDate', label: 'Creation date' },
+  IGNR: { name: 'genre', label: 'Genre' },
+};
+
 function matchesAscii(bytes: Uint8Array, offset: number, expected: Uint8Array): boolean {
   return offset >= 0 && offset + expected.length <= bytes.length && expected.every((value, index) => bytes[offset + index] === value);
 }
@@ -15,17 +31,40 @@ export function hasWavSignature(bytes: Uint8Array): boolean {
   return matchesAscii(bytes, 0, RIFF_SIGNATURE) && matchesAscii(bytes, 8, WAVE_FORM);
 }
 
-/** RIFF-like roots are kept separate so callers can explain unsupported forms. */
+/** RIFF-like roots remain distinguishable so callers can explain exclusions. */
 export function hasRiffContainer(bytes: Uint8Array): boolean {
-  return matchesAscii(bytes, 0, RIFF_SIGNATURE) || matchesAscii(bytes, 0, new Uint8Array([0x52, 0x49, 0x46, 0x58])) || matchesAscii(bytes, 0, new Uint8Array([0x52, 0x46, 0x36, 0x34]));
+  return matchesAscii(bytes, 0, RIFF_SIGNATURE)
+    || matchesAscii(bytes, 0, RIFX_SIGNATURE)
+    || matchesAscii(bytes, 0, RF64_SIGNATURE);
+}
+
+function boundedSpan(bytes: Uint8Array, offset: number, length: number): ByteSpan {
+  const safeOffset = Math.max(0, Math.min(bytes.length, Math.trunc(offset)));
+  const safeLength = Math.max(0, Math.min(bytes.length - safeOffset, Math.trunc(length)));
+  return { offset: safeOffset, length: safeLength };
+}
+
+function boundedSpanWithin(bytes: Uint8Array, offset: number, length: number, boundary = bytes.length): ByteSpan {
+  const safeBoundary = Math.max(0, Math.min(bytes.length, Math.trunc(boundary)));
+  const safeOffset = Math.max(0, Math.min(safeBoundary, Math.trunc(offset)));
+  const safeLength = Math.max(0, Math.min(safeBoundary - safeOffset, Math.trunc(length)));
+  return { offset: safeOffset, length: safeLength };
 }
 
 function bytesOf(bytes: Uint8Array, span: ByteSpan): number[] {
   return Array.from(bytes.slice(span.offset, span.offset + span.length));
 }
 
+function canRead(bytes: Uint8Array, offset: number, length: number): boolean {
+  return Number.isSafeInteger(offset) && Number.isSafeInteger(length) && offset >= 0 && length >= 0 && offset + length <= bytes.length;
+}
+
 function ascii(bytes: Uint8Array, offset: number, length: number): string {
-  return String.fromCharCode(...bytesOf(bytes, { offset, length }));
+  return String.fromCharCode(...bytesOf(bytes, boundedSpan(bytes, offset, length)));
+}
+
+function text(bytes: Uint8Array, offset: number, length: number): string {
+  return ascii(bytes, offset, length).replace(/\0+$/, '');
 }
 
 function u16(bytes: Uint8Array, offset: number): number {
@@ -60,116 +99,362 @@ function field(
   };
 }
 
-function commonChunkFields(bytes: Uint8Array, offset: number, length: number, type: string): Field[] {
-  return [
-    field(bytes, `wav-${type.trim().toLowerCase() || 'chunk'}-length-${offset}`, 'length', 'Length', { offset, length: 4 }, length, 'unsigned 32-bit integer', 'The little-endian payload length declared by this RIFF chunk.'),
-    field(bytes, `wav-${type.trim().toLowerCase() || 'chunk'}-type-${offset}`, 'type', 'Type', { offset: offset + 4, length: 4 }, type, 'ASCII identifier', 'The four-byte RIFF chunk identifier.', 'n/a'),
-  ];
+function diagnostic(code: string, severity: Diagnostic['severity'], message: string, span: ByteSpan): Diagnostic {
+  return { code, severity, message, span };
 }
 
-function fmtFields(bytes: Uint8Array, offset: number, length: number): Field[] {
-  const fields = commonChunkFields(bytes, offset, length, 'fmt ');
-  const data = offset + 8;
-  if (length < 16) return fields;
-  fields.push(
-    field(bytes, 'wav-fmt-audio-format', 'audioFormat', 'Audio format', { offset: data, length: 2 }, u16(bytes, data), 'unsigned 16-bit integer', 'The audio encoding tag: 1 is PCM and 3 is IEEE float.'),
-    field(bytes, 'wav-fmt-channels', 'channels', 'Channels', { offset: data + 2, length: 2 }, u16(bytes, data + 2), 'unsigned 16-bit integer', 'The number of interleaved audio channels.'),
-    field(bytes, 'wav-fmt-sample-rate', 'sampleRate', 'Sample rate', { offset: data + 4, length: 4 }, u32(bytes, data + 4), 'unsigned 32-bit integer', 'The number of samples per second.'),
-    field(bytes, 'wav-fmt-byte-rate', 'byteRate', 'Byte rate', { offset: data + 8, length: 4 }, u32(bytes, data + 8), 'unsigned 32-bit integer', 'The number of bytes per second in the encoded stream.'),
-    field(bytes, 'wav-fmt-block-align', 'blockAlign', 'Block align', { offset: data + 12, length: 2 }, u16(bytes, data + 12), 'unsigned 16-bit integer', 'The byte size of one sample frame.'),
-    field(bytes, 'wav-fmt-bits-per-sample', 'bitsPerSample', 'Bits per sample', { offset: data + 14, length: 2 }, u16(bytes, data + 14), 'unsigned 16-bit integer', 'The encoded bit depth of each channel sample.'),
-  );
+function addUnmapped(unmapped: UnmappedSpan[], bytes: Uint8Array, span: ByteSpan, reason: string): void {
+  const safe = boundedSpan(bytes, span.offset, span.length);
+  if (safe.length === 0) return;
+  const previous = unmapped[unmapped.length - 1];
+  if (previous && previous.span.offset + previous.span.length === safe.offset && previous.reason === reason) {
+    previous.span.length += safe.length;
+    previous.length += safe.length;
+    return;
+  }
+  unmapped.push({
+    id: `wav-unmapped-${safe.offset}`,
+    span: safe,
+    offset: safe.offset,
+    length: safe.length,
+    label: 'Unmapped span',
+    reason,
+  });
+}
+
+function chunkId(type: string): string {
+  return type.trim().toLowerCase() || 'chunk';
+}
+
+function commonChunkFields(bytes: Uint8Array, offset: number, declaredLength: number, type: string, boundary = bytes.length): Field[] {
+  const fields: Field[] = [];
+  if (offset + 4 <= boundary && canRead(bytes, offset, 4)) {
+    fields.push(field(bytes, `wav-${chunkId(type)}-length-${offset}`, 'length', 'Length', { offset, length: 4 }, declaredLength, 'unsigned 32-bit integer', 'The little-endian payload length declared by this RIFF chunk.'));
+  }
+  if (offset + 8 <= boundary && canRead(bytes, offset + 4, 4)) {
+    fields.push(field(bytes, `wav-${chunkId(type)}-type-${offset}`, 'type', 'Type', { offset: offset + 4, length: 4 }, type, 'ASCII identifier', 'The four-byte RIFF chunk identifier.', 'n/a'));
+  }
   return fields;
 }
 
-function genericChunk(bytes: Uint8Array, offset: number, length: number, type: string, occurrence: number): Structure {
-  const span = { offset, length: Math.min(8 + length, bytes.length - offset) };
-  const fields = commonChunkFields(bytes, offset, length, type);
-  if (length > 0 && offset + 8 + length <= bytes.length) {
-    fields.push(field(bytes, `wav-${type.trim().toLowerCase() || 'chunk'}-payload-${offset}`, 'payload', 'Payload', { offset: offset + 8, length }, 'opaque bytes', 'opaque Payload', 'HexLens identifies this chunk but does not interpret its content.', 'n/a'));
+function payloadField(
+  bytes: Uint8Array,
+  id: string,
+  offset: number,
+  declaredLength: number,
+  value: string,
+  explanation: string,
+  boundary = bytes.length,
+): Field | undefined {
+  const availableLength = Math.max(0, Math.min(declaredLength, boundary - offset, bytes.length - offset));
+  if (availableLength === 0 && (offset > boundary || !canRead(bytes, offset, 0))) return undefined;
+  return field(bytes, id, 'payload', 'Payload', { offset, length: availableLength }, value, 'opaque Payload', explanation, 'n/a');
+}
+
+function fmtFields(bytes: Uint8Array, offset: number, declaredLength: number, boundary = bytes.length, idSuffix = ''): Field[] {
+  const fields = commonChunkFields(bytes, offset, declaredLength, 'fmt ', boundary);
+  const dataOffset = offset + 8;
+  const fieldDefinitions: Array<[string, string, string, number, number, string, Field['endianness']]> = [
+    ['audioFormat', 'Audio format', 'unsigned 16-bit integer', 0, 2, 'The audio encoding tag: 1 is PCM and 3 is IEEE float.', 'little-endian'],
+    ['channels', 'Channels', 'unsigned 16-bit integer', 2, 2, 'The number of interleaved audio channels.', 'little-endian'],
+    ['sampleRate', 'Sample rate', 'unsigned 32-bit integer', 4, 4, 'The number of samples per second.', 'little-endian'],
+    ['byteRate', 'Byte rate', 'unsigned 32-bit integer', 8, 4, 'The number of bytes per second in the encoded stream.', 'little-endian'],
+    ['blockAlign', 'Block align', 'unsigned 16-bit integer', 12, 2, 'The byte size of one sample frame.', 'little-endian'],
+    ['bitsPerSample', 'Bits per sample', 'unsigned 16-bit integer', 14, 2, 'The encoded bit depth of each channel sample.', 'little-endian'],
+  ];
+  for (const [name, label, representation, relativeOffset, length, explanation, endianness] of fieldDefinitions) {
+    const absoluteOffset = dataOffset + relativeOffset;
+    if (!canRead(bytes, absoluteOffset, length) || absoluteOffset + length > boundary || relativeOffset + length > declaredLength) continue;
+    const value = length === 2 ? u16(bytes, absoluteOffset) : u32(bytes, absoluteOffset);
+    fields.push(field(bytes, `wav-fmt-${name}${idSuffix}`, name, label, { offset: absoluteOffset, length }, value, representation, explanation, endianness));
   }
+  if (declaredLength >= 18 && canRead(bytes, dataOffset + 16, 2) && dataOffset + 18 <= boundary) {
+    fields.push(field(bytes, `wav-fmt-extension-size${idSuffix}`, 'extensionSize', 'Extension size', { offset: dataOffset + 16, length: 2 }, u16(bytes, dataOffset + 16), 'unsigned 16-bit integer', 'The optional WAVEFORMATEX extension size.', 'little-endian'));
+  }
+  return fields;
+}
+
+function genericChunk(bytes: Uint8Array, offset: number, declaredLength: number, type: string, occurrence: number, boundary = bytes.length): Structure {
+  const span = boundedSpanWithin(bytes, offset, 8 + declaredLength, boundary);
+  const fields = commonChunkFields(bytes, offset, declaredLength, type, boundary);
+  const payload = payloadField(bytes, `wav-${chunkId(type)}-payload-${offset}`, offset + 8, declaredLength, 'opaque bytes', 'HexLens identifies this chunk but does not interpret its content.', boundary);
+  if (payload) fields.push(payload);
   return {
-    id: `wav-${type.trim().toLowerCase() || 'chunk'}${occurrence > 1 ? `-${occurrence}` : ''}`,
-    name: type.trim().toLowerCase() || 'chunk',
+    id: `wav-${chunkId(type)}${occurrence > 1 ? `-${occurrence}` : ''}`,
+    name: chunkId(type),
     label: `${type} · opaque Payload`,
     kind: 'chunk',
     span,
     fields,
-    description: 'A RIFF chunk kept generic until the bounded WAV contract defines it.',
+    description: 'A RIFF chunk kept generic by the bounded WAV contract; its Payload remains opaque.',
   };
 }
 
-function makeStructure(bytes: Uint8Array, offset: number, length: number, type: string, occurrence: number): Structure {
-  const span = { offset, length: 8 + length };
-  if (type === 'fmt ') {
-    return {
-      id: `wav-fmt${occurrence > 1 ? `-${occurrence}` : ''}`,
-      name: 'fmt',
-      label: 'fmt · format',
-      kind: 'chunk',
-      span,
-      fields: fmtFields(bytes, offset, length),
-      description: 'The little-endian format values that describe the audio stream.',
-    };
-  }
-  if (type === 'data') {
-    return {
-      id: `wav-data${occurrence > 1 ? `-${occurrence}` : ''}`,
-      name: 'data',
-      label: 'data · audio sample Payload',
-      kind: 'payload',
-      span,
-      fields: [
-        ...commonChunkFields(bytes, offset, length, type),
-        field(bytes, `wav-data-payload-${offset}`, 'payload', 'Payload', { offset: offset + 8, length }, 'opaque audio sample bytes', 'opaque Payload', 'HexLens identifies audio sample bytes but does not decode them.', 'n/a'),
-      ],
-      description: 'The original audio sample bytes, carried as opaque Payload.',
-    };
-  }
-  return genericChunk(bytes, offset, length, type, occurrence);
+function fmtStructure(bytes: Uint8Array, offset: number, declaredLength: number, occurrence: number, boundary = bytes.length): Structure {
+  return {
+    id: `wav-fmt${occurrence > 1 ? `-${occurrence}` : ''}`,
+    name: 'fmt',
+    label: 'fmt · format',
+    kind: 'chunk',
+    span: boundedSpanWithin(bytes, offset, 8 + declaredLength, boundary),
+    fields: fmtFields(bytes, offset, declaredLength, boundary, occurrence > 1 ? `-${offset}` : ''),
+    description: 'The little-endian format values that describe the audio stream.',
+  };
 }
 
-function riffStructure(bytes: Uint8Array, declaredLength: number): Structure {
-  const span = { offset: 0, length: Math.min(bytes.length, declaredLength + 8) };
+function dataStructure(bytes: Uint8Array, offset: number, declaredLength: number, occurrence: number, boundary = bytes.length): Structure {
+  const fields = commonChunkFields(bytes, offset, declaredLength, 'data', boundary);
+  const payload = payloadField(bytes, `wav-data-payload-${offset}`, offset + 8, declaredLength, 'opaque audio sample bytes', 'HexLens identifies audio sample bytes but does not decode them.', boundary);
+  if (payload) fields.push(payload);
+  return {
+    id: `wav-data${occurrence > 1 ? `-${occurrence}` : ''}`,
+    name: 'data',
+    label: 'data · audio sample Payload',
+    kind: 'payload',
+    span: boundedSpanWithin(bytes, offset, 8 + declaredLength, boundary),
+    fields,
+    description: 'The original audio sample bytes, carried as opaque Payload.',
+  };
+}
+
+function factStructure(bytes: Uint8Array, offset: number, declaredLength: number, occurrence: number, boundary = bytes.length): Structure {
+  const fields = commonChunkFields(bytes, offset, declaredLength, 'fact', boundary);
+  if (declaredLength >= 4 && offset + 12 <= boundary && canRead(bytes, offset + 8, 4)) {
+    fields.push(field(bytes, `wav-fact-sample-length-${offset}`, 'sampleLength', 'Sample length', { offset: offset + 8, length: 4 }, u32(bytes, offset + 8), 'unsigned 32-bit integer', 'The number of decoded sample frames reported by this fact chunk.', 'little-endian'));
+  }
+  const extraLength = Math.max(0, declaredLength - 4);
+  const payload = extraLength > 0
+    ? payloadField(bytes, `wav-fact-payload-${offset}`, offset + 12, extraLength, 'opaque bytes', 'Additional fact bytes are outside the bounded contract and remain opaque.', boundary)
+    : undefined;
+  if (payload) fields.push(payload);
+  return {
+    id: `wav-fact${occurrence > 1 ? `-${occurrence}` : ''}`,
+    name: 'fact',
+    label: 'fact · sample count',
+    kind: 'chunk',
+    span: boundedSpanWithin(bytes, offset, 8 + declaredLength, boundary),
+    fields,
+    description: 'An optional fact chunk carrying a decoded sample-frame count for non-PCM or extended audio.',
+  };
+}
+
+function listStructure(bytes: Uint8Array, offset: number, declaredLength: number, occurrence: number, listType?: string, boundary = bytes.length): Structure {
+  const fields = commonChunkFields(bytes, offset, declaredLength, 'LIST', boundary);
+  if (declaredLength >= 4 && offset + 12 <= boundary && canRead(bytes, offset + 8, 4)) {
+    fields.push(field(bytes, `wav-list-type-${offset}`, 'listType', 'List type', { offset: offset + 8, length: 4 }, listType ?? ascii(bytes, offset + 8, 4), 'ASCII identifier', 'The four-byte LIST payload type.', 'n/a'));
+  }
+  if (listType !== 'INFO') {
+    const payloadLength = Math.max(0, declaredLength - 4);
+    const payload = payloadLength > 0
+      ? payloadField(bytes, `wav-list-payload-${offset}`, offset + 12, payloadLength, 'opaque bytes', 'This LIST type is outside the declared INFO metadata subset and remains opaque.', boundary)
+      : undefined;
+    if (payload) fields.push(payload);
+  }
+  return {
+    id: `wav-list${occurrence > 1 ? `-${occurrence}` : ''}`,
+    name: 'list',
+    label: `LIST${listType ? `/${listType}` : ''} · metadata`,
+    kind: 'chunk',
+    span: boundedSpanWithin(bytes, offset, 8 + declaredLength, boundary),
+    fields,
+    description: listType === 'INFO' ? 'An INFO metadata list; declared identifiers are parsed as text Fields.' : 'A generic RIFF LIST container; only LIST/INFO metadata is interpreted.',
+  };
+}
+
+function infoStructure(bytes: Uint8Array, offset: number, declaredLength: number, type: string, occurrence: number, boundary = bytes.length): Structure {
+  const metadata = INFO_LABELS[type];
+  const fields = commonChunkFields(bytes, offset, declaredLength, type, boundary);
+  const availableTextLength = Math.max(0, Math.min(declaredLength, boundary - (offset + 8), bytes.length - (offset + 8)));
+  if (metadata && availableTextLength > 0) {
+    fields.push(field(bytes, `wav-${type.toLowerCase()}-value-${offset}`, metadata.name, metadata.label, { offset: offset + 8, length: availableTextLength }, text(bytes, offset + 8, availableTextLength), 'INFO text', `The ${type} identifier's text value from the bounded LIST/INFO subset.`, 'n/a'));
+  }
+  const payload = !metadata && availableTextLength > 0
+    ? payloadField(bytes, `wav-${chunkId(type)}-payload-${offset}`, offset + 8, availableTextLength, 'opaque bytes', 'This INFO identifier is outside the declared metadata subset and remains opaque.', boundary)
+    : undefined;
+  if (payload) fields.push(payload);
+  return {
+    id: `wav-${type.toLowerCase()}${occurrence > 1 ? `-${occurrence}` : ''}-${offset}`,
+    name: type.toLowerCase(),
+    label: metadata ? `${type} · ${metadata.label.toLowerCase()}` : `${type} · opaque Payload`,
+    kind: 'chunk',
+    span: boundedSpanWithin(bytes, offset, 8 + declaredLength, boundary),
+    fields,
+    description: metadata ? `The ${type} identifier from a RIFF/LIST/INFO metadata list.` : 'An INFO identifier kept generic until the bounded WAV contract defines it.',
+  };
+}
+
+function riffStructure(bytes: Uint8Array, declaredLength: number, containerEnd: number): Structure {
+  const rootSpan = boundedSpan(bytes, 0, Math.max(12, containerEnd));
+  const fields: Field[] = [];
+  if (canRead(bytes, 4, 4)) {
+    fields.push(field(bytes, 'wav-riff-size', 'chunkSize', 'Chunk size', { offset: 4, length: 4 }, declaredLength, 'unsigned 32-bit integer', 'The little-endian size of the RIFF form after the first eight bytes.'));
+  }
+  if (canRead(bytes, 8, 4)) {
+    fields.push(field(bytes, 'wav-riff-form', 'formType', 'Form type', { offset: 8, length: 4 }, 'WAVE', 'ASCII identifier', 'The form identifier that selects the RIFF/WAVE Format.', 'n/a'));
+  }
   return {
     id: 'wav-riff',
     name: 'riff',
     label: 'RIFF/WAVE · container',
     kind: 'header',
-    span,
-    fields: [
-      field(bytes, 'wav-riff-size', 'chunkSize', 'Chunk size', { offset: 4, length: 4 }, declaredLength, 'unsigned 32-bit integer', 'The little-endian size of the RIFF form after the first eight bytes.'),
-      field(bytes, 'wav-riff-form', 'formType', 'Form type', { offset: 8, length: 4 }, 'WAVE', 'ASCII identifier', 'The form identifier that selects the RIFF/WAVE Format.', 'n/a'),
-    ],
+    span: rootSpan,
+    fields,
     description: 'The RIFF container and WAVE form identifier at the start of the file.',
   };
 }
 
-function diagnostic(code: string, severity: Diagnostic['severity'], message: string, span: ByteSpan): Diagnostic {
-  return { code, severity, message, span };
+function structureForChunk(bytes: Uint8Array, offset: number, declaredLength: number, type: string, occurrence: number, boundary = bytes.length): Structure {
+  if (type === 'fmt ') return fmtStructure(bytes, offset, declaredLength, occurrence, boundary);
+  if (type === 'data') return dataStructure(bytes, offset, declaredLength, occurrence, boundary);
+  if (type === 'fact') return factStructure(bytes, offset, declaredLength, occurrence, boundary);
+  return genericChunk(bytes, offset, declaredLength, type, occurrence, boundary);
 }
 
-function unmappedSpans(length: number, structures: Structure[]): UnmappedSpan[] {
+function parseInfoChildren(
+  bytes: Uint8Array,
+  listOffset: number,
+  listLength: number,
+  boundary: number,
+  structures: Structure[],
+  diagnostics: Diagnostic[],
+  unmapped: UnmappedSpan[],
+  occurrences: Map<string, number>,
+): void {
+  const payloadStart = listOffset + 8;
+  const listEnd = Math.min(boundary, listOffset + 8 + listLength);
+  if (listLength < 4 || !canRead(bytes, payloadStart, 4)) return;
+  let offset = payloadStart + 4;
+  while (offset < listEnd) {
+    const remaining = listEnd - offset;
+    if (remaining < 8) {
+      diagnostics.push(diagnostic('truncated_chunk', 'error', 'A LIST/INFO metadata chunk header is incomplete at the end of the list.', { offset, length: remaining }));
+      addUnmapped(unmapped, bytes, { offset, length: remaining }, 'Bytes left after an incomplete LIST/INFO chunk header.');
+      return;
+    }
+    const type = ascii(bytes, offset, 4);
+    const declaredLength = u32(bytes, offset + 4);
+    const payloadEnd = offset + 8 + declaredLength;
+    if (payloadEnd > listEnd || payloadEnd < offset + 8) {
+      const available = Math.max(0, listEnd - offset);
+      const occurrence = (occurrences.get(type) ?? 0) + 1;
+      occurrences.set(type, occurrence);
+      structures.push(INFO_LABELS[type] ? infoStructure(bytes, offset, declaredLength, type, occurrence, listEnd) : genericChunk(bytes, offset, declaredLength, type, occurrence, listEnd));
+      diagnostics.push(diagnostic('truncated_chunk', 'error', `The ${type || 'LIST/INFO'} metadata chunk declares bytes beyond the list boundary.`, { offset, length: available }));
+      return;
+    }
+    const occurrence = (occurrences.get(type) ?? 0) + 1;
+    occurrences.set(type, occurrence);
+    structures.push(INFO_LABELS[type] ? infoStructure(bytes, offset, declaredLength, type, occurrence, listEnd) : genericChunk(bytes, offset, declaredLength, type, occurrence, listEnd));
+    offset = payloadEnd;
+    if (declaredLength % 2 === 1) {
+      if (offset >= listEnd || offset >= bytes.length) {
+        diagnostics.push(diagnostic('invalid_alignment', 'error', 'An odd-sized LIST/INFO chunk is missing its required padding byte.', { offset, length: 0 }));
+        return;
+      }
+      addUnmapped(unmapped, bytes, { offset, length: 1 }, 'Required RIFF padding byte after an odd-sized LIST/INFO chunk.');
+      offset += 1;
+    }
+  }
+}
+
+function unsupportedRootMessage(bytes: Uint8Array): string {
+  if (matchesAscii(bytes, 0, RF64_SIGNATURE)) return 'RF64 is outside the bounded RIFF/WAVE contract; only little-endian RIFF/WAVE is supported.';
+  if (matchesAscii(bytes, 0, RIFX_SIGNATURE)) return 'RIFX uses a big-endian RIFF form and is outside the bounded RIFF/WAVE contract.';
+  if (matchesAscii(bytes, 0, RIFF_SIGNATURE)) return 'The RIFF container is not a RIFF/WAVE file.';
+  return 'The file does not begin with the RIFF/WAVE signature.';
+}
+
+function addFmtDiagnostics(structure: Structure, diagnostics: Diagnostic[]): number | undefined {
+  const audioFormat = structure.fields.find((item) => item.name === 'audioFormat');
+  if (!audioFormat || structure.span.length < 24) {
+    diagnostics.push(diagnostic('invalid_length', 'error', 'The fmt chunk must contain the 16-byte PCM or IEEE-float format body.', structure.span));
+    return undefined;
+  }
+  const formatTag = typeof audioFormat.value === 'number' ? audioFormat.value : undefined;
+  if (formatTag !== WAVE_FORMAT_PCM && formatTag !== WAVE_FORMAT_IEEE_FLOAT) {
+    const detail = formatTag === WAVE_FORMAT_EXTENSIBLE ? 'WAVE_FORMAT_EXTENSIBLE' : `format tag ${formatTag ?? 'unknown'}`;
+    diagnostics.push(diagnostic('unsupported_format_tag', 'error', `${detail} is outside the bounded WAV contract; PCM (1) and IEEE float (3) are supported.`, audioFormat.span));
+    return formatTag;
+  }
+
+  const byName = (name: string): Field | undefined => structure.fields.find((item) => item.name === name);
+  const channels = byName('channels');
+  const sampleRate = byName('sampleRate');
+  const byteRate = byName('byteRate');
+  const blockAlign = byName('blockAlign');
+  const bitsPerSample = byName('bitsPerSample');
+  const numeric = (item: Field | undefined): number | undefined => typeof item?.value === 'number' ? item.value : undefined;
+  const channelCount = numeric(channels);
+  const rate = numeric(sampleRate);
+  const bits = numeric(bitsPerSample);
+  const actualBlockAlign = numeric(blockAlign);
+  const actualByteRate = numeric(byteRate);
+  const expectedBlockAlign = channelCount !== undefined && bits !== undefined && channelCount > 0 && bits > 0
+    ? channelCount * Math.ceil(bits / 8)
+    : undefined;
+  if (channelCount !== undefined && channelCount < 1) {
+    diagnostics.push(diagnostic('invalid_consistency', 'error', 'The fmt chunk must declare at least one channel.', channels?.span ?? structure.span));
+  }
+  if (rate !== undefined && rate < 1) {
+    diagnostics.push(diagnostic('invalid_consistency', 'error', 'The fmt chunk must declare a positive sample rate.', sampleRate?.span ?? structure.span));
+  }
+  if (bits !== undefined && (bits < 1 || bits % 8 !== 0)) {
+    diagnostics.push(diagnostic('invalid_consistency', 'error', 'Bits per sample must be a positive whole number of bytes for PCM or IEEE float.', bitsPerSample?.span ?? structure.span));
+  }
+  if (expectedBlockAlign !== undefined && actualBlockAlign !== expectedBlockAlign) {
+    diagnostics.push(diagnostic('invalid_consistency', 'error', `Block align ${actualBlockAlign ?? 'unknown'} does not match ${channelCount} channel(s) × ${Math.ceil((bits ?? 0) / 8)} byte(s).`, blockAlign?.span ?? structure.span));
+  }
+  if (rate !== undefined && expectedBlockAlign !== undefined) {
+    const expectedByteRate = rate * expectedBlockAlign;
+    if (actualByteRate !== expectedByteRate) {
+      diagnostics.push(diagnostic('invalid_consistency', 'error', `Byte rate ${actualByteRate ?? 'unknown'} does not match sample rate × block align (${expectedByteRate}).`, byteRate?.span ?? structure.span));
+    }
+  }
+  return formatTag;
+}
+
+function buildUnmappedSpans(length: number, structures: Structure[], explicit: UnmappedSpan[] = []): UnmappedSpan[] {
+  const explicitSpans = explicit
+    .map((item) => {
+      const offset = Math.max(0, Math.min(length, Math.trunc(item.span.offset)));
+      const span = { offset, length: Math.max(0, Math.min(length - offset, Math.trunc(item.span.length))) };
+      return { ...item, span, offset: span.offset, length: span.length };
+    })
+    .filter((item) => item.span.length > 0)
+    .sort((a, b) => a.span.offset - b.span.offset);
   const covered = structures
     .map((structure) => structure.span)
     .filter((target) => target.length > 0)
     .sort((a, b) => a.offset - b.offset);
-  const result: UnmappedSpan[] = [];
+  const result: UnmappedSpan[] = [...explicitSpans];
+  const appendGeneric = (start: number, end: number): void => {
+    if (end <= start) return;
+    let segments: ByteSpan[] = [{ offset: start, length: end - start }];
+    for (const explicitSpan of explicitSpans) {
+      const explicitStart = explicitSpan.span.offset;
+      const explicitEnd = explicitStart + explicitSpan.span.length;
+      segments = segments.flatMap((segment) => {
+        const segmentEnd = segment.offset + segment.length;
+        if (explicitEnd <= segment.offset || explicitStart >= segmentEnd) return [segment];
+        const pieces: ByteSpan[] = [];
+        if (segment.offset < explicitStart) pieces.push({ offset: segment.offset, length: explicitStart - segment.offset });
+        if (explicitEnd < segmentEnd) pieces.push({ offset: explicitEnd, length: segmentEnd - explicitEnd });
+        return pieces;
+      });
+    }
+    for (const segment of segments) {
+      result.push({ id: `wav-unmapped-${result.length + 1}`, span: segment, ...segment, reason: 'Bytes not claimed by a parsed Structure.' });
+    }
+  };
   let cursor = 0;
   for (const target of covered) {
     const start = Math.max(0, Math.min(length, target.offset));
     const end = Math.max(start, Math.min(length, target.offset + target.length));
-    if (start > cursor) {
-      const gap = { offset: cursor, length: start - cursor };
-      result.push({ id: `wav-unmapped-${result.length + 1}`, span: gap, ...gap, reason: 'Bytes not claimed by a parsed Structure.' });
-    }
+    appendGeneric(cursor, start);
     cursor = Math.max(cursor, end);
   }
-  if (cursor < length) {
-    const gap = { offset: cursor, length: length - cursor };
-    result.push({ id: `wav-unmapped-${result.length + 1}`, span: gap, ...gap, reason: 'Bytes not claimed by a parsed Structure.' });
-  }
-  return result;
+  appendGeneric(cursor, length);
+  return result.sort((a, b) => a.span.offset - b.span.offset);
 }
 
 function inspectionResult(
@@ -178,8 +463,9 @@ function inspectionResult(
   sourceName: string,
   structures: Structure[],
   diagnostics: Diagnostic[],
+  explicitUnmapped: UnmappedSpan[] = [],
 ): Inspection {
-  const unmapped = unmappedSpans(bytes.length, structures);
+  const unmapped = buildUnmappedSpans(bytes.length, structures, explicitUnmapped);
   const complete = !diagnostics.some((item) => item.severity === 'error');
   return {
     id,
@@ -204,68 +490,99 @@ function inspectionResult(
 export function inspectWav(bytes: Uint8Array, sourceName = 'hexlens-sample.wav', _metadata: WavInspectionMetadata = {}): Inspection {
   const diagnostics: Diagnostic[] = [];
   const structures: Structure[] = [];
+  const unmappedSpans: UnmappedSpan[] = [];
   const inspectionId = `wav-${bytes.byteLength}-${bytes[0] ?? 0}`;
 
   if (!hasWavSignature(bytes)) {
-    const message = hasRiffContainer(bytes)
-      ? 'The RIFF container is not a RIFF/WAVE file.'
-      : 'The file does not begin with the RIFF/WAVE signature.';
+    const message = unsupportedRootMessage(bytes);
     return inspectionResult(
       inspectionId,
       bytes,
       sourceName,
       [],
       [diagnostic('unsupported_format', 'error', message, { offset: 0, length: Math.min(bytes.length, 12) })],
+      unmappedSpans,
     );
   }
 
   const declaredLength = u32(bytes, 4);
-  structures.push(riffStructure(bytes, declaredLength));
   const expectedFileLength = declaredLength + 8;
+  const containerEnd = Math.min(bytes.length, Math.max(12, expectedFileLength));
+  structures.push(riffStructure(bytes, declaredLength, containerEnd));
+
   if (expectedFileLength > bytes.length) {
-    diagnostics.push(diagnostic('truncated_riff', 'error', 'The RIFF container declares bytes beyond the file boundary.', { offset: 4, length: Math.min(4, bytes.length - 4) }));
+    diagnostics.push(diagnostic('truncated_riff', 'error', 'The RIFF container declares bytes beyond the file boundary.', { offset: 4, length: 4 }));
   } else if (expectedFileLength < bytes.length) {
     diagnostics.push(diagnostic('invalid_length', 'warning', 'The RIFF container ends before the available file bytes.', { offset: 4, length: 4 }));
+    addUnmapped(unmappedSpans, bytes, { offset: Math.max(12, expectedFileLength), length: bytes.length - Math.max(12, expectedFileLength) }, 'Bytes beyond the declared RIFF container length.');
   }
 
   let offset = 12;
   const occurrences = new Map<string, number>();
   let foundFmt = false;
   let foundData = false;
-  while (offset < bytes.length) {
-    const remaining = bytes.length - offset;
+  while (offset < containerEnd) {
+    const remaining = containerEnd - offset;
     if (remaining < 8) {
       diagnostics.push(diagnostic('truncated_chunk', 'error', 'A RIFF chunk header is incomplete at the end of the file.', { offset, length: remaining }));
+      addUnmapped(unmappedSpans, bytes, { offset, length: remaining }, 'Bytes left after an incomplete RIFF chunk header.');
       break;
     }
+
     const type = ascii(bytes, offset, 4);
-    const length = u32(bytes, offset + 4);
-    const total = 8 + length;
-    if (total < 8 || length > bytes.length - offset - 8) {
-      diagnostics.push(diagnostic('truncated_chunk', 'error', `The ${type || 'RIFF'} chunk declares bytes beyond the file boundary.`, { offset, length: remaining }));
-      break;
-    }
+    const declaredChunkLength = u32(bytes, offset + 4);
+    const chunkEnd = offset + 8 + declaredChunkLength;
+    const chunkFits = chunkEnd >= offset + 8 && chunkEnd <= containerEnd;
     const occurrence = (occurrences.get(type) ?? 0) + 1;
     occurrences.set(type, occurrence);
-    structures.push(makeStructure(bytes, offset, length, type, occurrence));
-    if (type === 'fmt ') foundFmt = true;
+    if (!chunkFits) {
+      const available = Math.max(0, containerEnd - offset);
+      const partial = type === 'fmt '
+        ? fmtStructure(bytes, offset, declaredChunkLength, occurrence, containerEnd)
+        : type === 'data'
+          ? dataStructure(bytes, offset, declaredChunkLength, occurrence, containerEnd)
+          : type === 'fact'
+            ? factStructure(bytes, offset, declaredChunkLength, occurrence, containerEnd)
+            : genericChunk(bytes, offset, declaredChunkLength, type, occurrence, containerEnd);
+      structures.push(partial);
+      diagnostics.push(diagnostic('truncated_chunk', 'error', `The ${type || 'RIFF'} chunk declares bytes beyond the ${expectedFileLength > bytes.length ? 'file' : 'RIFF container'} boundary.`, { offset, length: available }));
+      break;
+    }
+
+    const listType = type === 'LIST' && declaredChunkLength >= 4 && canRead(bytes, offset + 8, 4)
+      ? ascii(bytes, offset + 8, 4)
+      : undefined;
+    const structure = type === 'LIST'
+      ? listStructure(bytes, offset, declaredChunkLength, occurrence, listType, containerEnd)
+      : structureForChunk(bytes, offset, declaredChunkLength, type, occurrence, containerEnd);
+    structures.push(structure);
+    if (type === 'fmt ') {
+      foundFmt = true;
+      addFmtDiagnostics(structure, diagnostics);
+    }
     if (type === 'data') foundData = true;
-    offset += total;
-    if (length % 2 === 1) {
-      if (offset >= bytes.length) {
-        diagnostics.push(diagnostic('invalid_alignment', 'error', 'An odd-sized RIFF chunk is missing its required padding byte.', { offset: offset - 1, length: 1 }));
+    if (type === 'LIST' && listType === 'INFO') {
+      parseInfoChildren(bytes, offset, declaredChunkLength, containerEnd, structures, diagnostics, unmappedSpans, occurrences);
+    }
+
+    offset = chunkEnd;
+    if (declaredChunkLength % 2 === 1) {
+      if (offset >= containerEnd || offset >= bytes.length) {
+        diagnostics.push(diagnostic('invalid_alignment', 'error', 'An odd-sized RIFF chunk is missing its required padding byte.', { offset, length: 0 }));
         break;
       }
+      addUnmapped(unmappedSpans, bytes, { offset, length: 1 }, 'Required RIFF padding byte after an odd-sized chunk.');
       offset += 1;
     }
   }
-  if (!foundFmt) diagnostics.push(diagnostic('missing_fmt', 'error', 'The RIFF/WAVE file is missing its required fmt chunk.', { offset: 12, length: Math.max(0, bytes.length - 12) }));
-  if (!foundData) diagnostics.push(diagnostic('missing_data', 'error', 'The RIFF/WAVE file is missing its required data chunk.', { offset: 12, length: Math.max(0, bytes.length - 12) }));
+
+  if (!foundFmt) diagnostics.push(diagnostic('missing_fmt', 'error', 'The RIFF/WAVE file is missing its required fmt chunk.', { offset: 12, length: Math.max(0, containerEnd - 12) }));
+  if (!foundData) diagnostics.push(diagnostic('missing_data', 'error', 'The RIFF/WAVE file is missing its required data chunk.', { offset: 12, length: Math.max(0, containerEnd - 12) }));
 
   const extension = sourceName.match(/\.([^.]+)$/)?.[1]?.toLowerCase();
   if (extension && extension !== 'wav') {
     diagnostics.unshift(diagnostic('extension_mismatch', 'note', 'The filename extension does not match the RIFF/WAVE signature. Content determined this Format.', { offset: 0, length: 12 }));
   }
 
-  return inspectionResult(inspectionId, bytes, sourceName, structures, diagnostics);
+  return inspectionResult(inspectionId, bytes, sourceName, structures, diagnostics, unmappedSpans);
 }

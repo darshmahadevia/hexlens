@@ -280,8 +280,14 @@ function ensurePreview(target: InspectionSession): void {
     target.previewFailed = true;
     return;
   }
-  const copy = new Uint8Array(target.inspection.bytes);
-  target.previewUrl = URL.createObjectURL(new Blob([copy.buffer], { type: target.inspection.format === 'wav' ? 'audio/wav' : 'image/png' }));
+  try {
+    const copy = new Uint8Array(target.inspection.bytes);
+    target.previewUrl = URL.createObjectURL(new Blob([copy.buffer], { type: target.inspection.format === 'wav' ? 'audio/wav' : 'image/png' }));
+  } catch {
+    // A browser media surface is optional. Keep the structural Inspection when
+    // Blob/object-URL support is unavailable or rejects the original bytes.
+    target.previewFailed = true;
+  }
 }
 
 function renderFileIngress(): string {
@@ -679,8 +685,8 @@ function renderInspector(target: InspectionSession, requestedSelection: ByteSpan
   const sourceName = inspection.sourceName || 'Unnamed local file';
   const preview = target.previewUrl && !target.previewFailed
     ? inspection.format === 'wav'
-      ? `<audio controls preload="metadata" src="${escapeHtml(target.previewUrl)}" aria-label="The WAV rendered as the original file"></audio>`
-      : `<img src="${escapeHtml(target.previewUrl)}" alt="The ${displayFormat} rendered as the original file" />`
+      ? `<audio data-testid="source-preview-media" controls preload="metadata" src="${escapeHtml(target.previewUrl)}" aria-label="The WAV rendered as the original file"></audio>`
+      : `<img data-testid="source-preview-media" src="${escapeHtml(target.previewUrl)}" alt="The ${displayFormat} rendered as the original file" />`
     : '<p class="preview-unavailable">Original-file rendering unavailable; the Inspection remains usable.</p>';
   mount.innerHTML = `
     <main class="app-shell inspector-shell">
@@ -707,7 +713,7 @@ function renderInspector(target: InspectionSession, requestedSelection: ByteSpan
             <div class="selection-summary" id="selection-summary" data-testid="selection-summary" role="region" aria-labelledby="selection-summary-heading"><span class="summary-mark" aria-hidden="true"></span><span><span id="selection-summary-heading" class="sr-only">Selected span summary</span>${escapeHtml(selectedSummary)} <span class="summary-secondary">hex ${formatOffset(selection.offset, inspection.bytes.length)}–${formatOffset(Math.max(selection.offset, selection.offset + selection.length - 1), inspection.bytes.length)} · decimal ${formatDecimalOffset(selection.offset)}</span></span><button class="inline-copy" type="button" data-copy-kind="selection">Copy selected bytes</button>${focusSemanticAction}</div><div class="selection-announcement sr-only" aria-live="polite" aria-atomic="true" data-testid="selection-announcement"></div><div class="ascii-note"><span class="mono">·</span> non-printable bytes use the <span class="mono">·</span> marker; each byte has an accessible value label</div><div class="copy-feedback" data-testid="copy-feedback" role="status" aria-live="polite"></div>
           </section>
 
-          <aside class="field-panel" aria-labelledby="field-heading">${renderFieldInspector(inspection, resolution)}<figure class="source-preview"><figcaption id="field-heading">Source preview <span>· original-file rendering</span></figcaption>${preview}</figure></aside>
+          <aside class="field-panel" aria-labelledby="field-heading">${renderFieldInspector(inspection, resolution)}<figure class="source-preview" data-testid="source-preview"><figcaption id="field-heading">Source preview <span>· original-file rendering</span></figcaption>${preview}</figure></aside>
         </div>
         <footer class="sheet-footer inspector-footer"><span>Inspection: <strong>${target.kind === 'local' ? `Local ${displayFormat}` : `${displayFormat} Sample`}</strong></span><span>Source preview is not parsed output.</span><span class="footer-local">Local only · no telemetry</span></footer>
       </section>

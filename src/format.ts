@@ -6,7 +6,18 @@ import {
   PNG_LIMITS,
   PNG_SIGNATURE,
 } from './domain/png.ts';
-import { hasRiffContainer, hasWavSignature, inspectWav, RIFF_SIGNATURE, WAVE_FORM } from './domain/wav.ts';
+import {
+  hasRiffContainer,
+  hasWavSignature,
+  inspectWav,
+  RIFF_SIGNATURE,
+  RIFX_SIGNATURE,
+  RF64_SIGNATURE,
+  WAVE_FORM,
+  WAVE_FORMAT_EXTENSIBLE,
+  WAVE_FORMAT_IEEE_FLOAT,
+  WAVE_FORMAT_PCM,
+} from './domain/wav.ts';
 import type { FormatId } from './domain/inspection.ts';
 
 export {
@@ -18,7 +29,19 @@ export {
   PNG_SIGNATURE,
 } from './domain/png.ts';
 export type { PngInspectionMetadata } from './domain/png.ts';
-export { hasRiffContainer, hasWavSignature, inspectWav, RIFF_SIGNATURE, WAVE_FORM } from './domain/wav.ts';
+export {
+  hasRiffContainer,
+  hasWavSignature,
+  inspectWav,
+  RIFF_SIGNATURE,
+  RIFX_SIGNATURE,
+  RF64_SIGNATURE,
+  WAVE_FORM,
+  WAVE_FORMAT_EXTENSIBLE,
+  WAVE_FORMAT_IEEE_FLOAT,
+  WAVE_FORMAT_PCM,
+} from './domain/wav.ts';
+export type { WavInspectionMetadata } from './domain/wav.ts';
 export type { BitField, ByteSpan, DerivedValue, Diagnostic, Field, FieldValueStatus, Inspection, Payload, Structure, UnmappedSpan } from './domain/inspection.ts';
 export type { FormatId } from './domain/inspection.ts';
 export {
