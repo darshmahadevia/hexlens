@@ -6,7 +6,7 @@ This is the release record for issue #12. The commands below are reproducible fr
 
 - Stack: Vite 7 client, TypeScript 5, browser-native `File`, `URL.createObjectURL`, and a dependency-free virtual byte grid. The format contract remains the shared Byte-span model in ADR-0001.
 - Hosting: GitHub Pages through `.github/workflows/deploy-pages.yml`. `npm run build:pages` emits a `/hexlens/`-prefixed artifact and a `404.html` SPA fallback for `/inspect` deep links.
-- Public target: `https://darshmahadevia.github.io/hexlens/`. The ticket branch is intentionally not pushed. The Pages workflow is ready to publish from the integrated `main` branch; deployment status is recorded in the handoff message after that workflow runs.
+- Public target: `https://darshmahadevia.github.io/hexlens/`. The ticket branch is intentionally not pushed. A public deployment succeeded from the separate `release-pages` branch at workflow run [32547295493](https://github.com/darshmahadevia/hexlens/actions/runs/32547295493) for commit `a5a8ead`; the environment also permits the integrated `main` branch for the eventual merge deployment. The root returned HTTP 200, and a real browser rendered `/hexlens/inspect?sample=png` from the fallback body. Static GitHub Pages returns HTTP 404 for that deep-link response even though the SPA renders; this is the remaining hosting evidence limitation.
 - Scope: PNG and WAV only. The release does not claim ZIP, ELF, RF64, WAVE_FORMAT_EXTENSIBLE, compressed WAV codecs, PNG pixel decoding, arbitrary phone-file inspection, or server parsing.
 
 ## Thresholds fixed before the final run
