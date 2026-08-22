@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { detectFormat, hasWavSignature, PNG_LIMITS, PNG_SIGNATURE, inspectPng, RIFF_SIGNATURE, inspectWav } from '../src/format.ts';
+import { detectFormat, hasWavSignature, PNG_DIAGNOSTIC_CODES, PNG_LIMITS, PNG_SIGNATURE, inspectPng, RIFF_SIGNATURE, WAV_DIAGNOSTIC_CODES, inspectWav } from '../src/format.ts';
 import { sampleBytes, sampleInspection, wavSampleBytes, wavSampleInspection } from '../src/sample.ts';
 import { spanContains } from '../src/domain/inspection.ts';
 import { chunk, ihdrRgba, manifest, png, validEveryDeclaredChunk } from './fixtures/png-contract.ts';
@@ -41,6 +41,13 @@ test('content-first detection keeps a misleading filename non-fatal', () => {
   assert.equal(inspection.state, 'ready');
   assert.deepEqual(inspection.diagnostics.map((diagnostic) => diagnostic.code), ['extension_mismatch']);
   assert.deepEqual(inspection.diagnostics[0]?.span, { offset: 0, length: 8 });
+});
+
+test('Diagnostic code exports retain the legacy mismatch key while emitting the stable code', () => {
+  assert.equal(PNG_DIAGNOSTIC_CODES.extensionMismatch, 'extension_mismatch');
+  assert.equal(PNG_DIAGNOSTIC_CODES.formatNameMismatch, PNG_DIAGNOSTIC_CODES.extensionMismatch);
+  assert.equal(WAV_DIAGNOSTIC_CODES.extensionMismatch, 'extension_mismatch');
+  assert.equal(WAV_DIAGNOSTIC_CODES.formatNameMismatch, WAV_DIAGNOSTIC_CODES.extensionMismatch);
 });
 
 test('the public contract covers every declared PNG chunk and preserves source order', () => {

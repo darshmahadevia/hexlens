@@ -30,6 +30,8 @@ export const PNG_LIMITS = Object.freeze({
 export const PNG_DIAGNOSTIC_CODES = Object.freeze({
   unsupportedFormat: GENERIC_DIAGNOSTIC_CODES.unsupportedFormat,
   formatNameMismatch: GENERIC_DIAGNOSTIC_CODES.formatNameMismatch,
+  /** @deprecated Use formatNameMismatch; retained for API compatibility. */
+  extensionMismatch: GENERIC_DIAGNOSTIC_CODES.formatNameMismatch,
   limitReached: GENERIC_DIAGNOSTIC_CODES.limitReached,
   parseAborted: GENERIC_DIAGNOSTIC_CODES.parseAborted,
   truncatedChunk: 'truncated_chunk',

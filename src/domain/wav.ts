@@ -39,6 +39,8 @@ export const WAV_DIAGNOSTIC_CODES = Object.freeze({
   limitReached: GENERIC_DIAGNOSTIC_CODES.limitReached,
   parseAborted: GENERIC_DIAGNOSTIC_CODES.parseAborted,
   formatNameMismatch: GENERIC_DIAGNOSTIC_CODES.formatNameMismatch,
+  /** @deprecated Use formatNameMismatch; retained for API compatibility. */
+  extensionMismatch: GENERIC_DIAGNOSTIC_CODES.formatNameMismatch,
   truncatedRiff: 'truncated_riff',
   truncatedChunk: 'truncated_chunk',
   invalidLength: 'invalid_length',

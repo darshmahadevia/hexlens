@@ -16,6 +16,11 @@ test('the public local WAV flow renders INFO metadata and keeps samples opaque',
   await expect(page.getByRole('heading', { name: 'Local Inspection' })).toBeVisible();
   await expect(page.getByText('metadata.wav', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: /LIST\/INFO · metadata/ })).toBeVisible();
+  await expect(page.locator('.structure-children')).toHaveCount(2);
+  const infoChildren = page.locator('[data-structure-children^="wav-list"]');
+  await expect(infoChildren).toHaveCount(1);
+  await expect(infoChildren.locator('[data-structure-id]')).toHaveCount(5);
+  await expect(infoChildren.locator('[data-structure-id]').first()).toHaveAttribute('data-structure-id', /inam/);
   await expect(page.getByRole('button', { name: /INAM · name/ })).toBeVisible();
   await page.getByRole('button', { name: /INAM · name/ }).click();
   await expect(page.getByTestId('field-detail')).toContainText('Name');
@@ -36,6 +41,7 @@ test('partial WAV Diagnostics and Source-preview failure remain independent', as
   await expect(page.getByText(/Partial Inspection · .*WAV/)).toBeVisible();
   await expect(page.getByTestId('diagnostics')).toContainText('unsupported_format_tag');
   await expect(page.getByTestId('diagnostics')).toContainText('format tag 2');
+  await expect(page.getByTestId('structure-diagnostics')).toContainText('unsupported_format_tag');
   await expect(page.locator('[data-testid="source-preview-media"]')).toBeVisible();
 
   await page.locator('[data-testid="source-preview-media"]').dispatchEvent('error');

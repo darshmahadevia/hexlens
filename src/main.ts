@@ -1,5 +1,5 @@
 import './styles.css';
-import type { ByteSpan, Field, FormatId, Inspection } from './domain/inspection.ts';
+import type { ByteSpan, FormatId, Inspection } from './domain/inspection.ts';
 import {
   BYTES_PER_ROW,
   asciiLabel,
@@ -19,9 +19,11 @@ import {
   type OffsetMode,
   type SelectionResolution,
 } from './domain/byte-grid.ts';
-import { spanIntersects, spanLabel } from './domain/inspection.ts';
-import { createRawInspection, INSPECTION_LIMITS, PNG_TYPED_CHUNK_TYPES } from './format.ts';
+import { spanLabel } from './domain/inspection.ts';
+import { createRawInspection, INSPECTION_LIMITS } from './format.ts';
 import { LocalFileFlow } from './local-file-flow.ts';
+import { renderFieldInspector } from './field-inspector.ts';
+import { renderStructureTree } from './structure-tree.ts';
 import { sampleInspection, PNG_SAMPLE_BASE64, wavSampleInspection, WAV_SAMPLE_BASE64 } from './sample.ts';
 
 const app = document.querySelector<HTMLDivElement>('#app');
@@ -117,18 +119,6 @@ function queueSelectionAnnouncement(message: string): void {
 
 function formatValue(value: string | number): string {
   return typeof value === 'number' ? value.toLocaleString('en-US') : value;
-}
-
-function fieldStatusLabel(field: Field): string {
-  if (field.status === 'absent') return 'Absent';
-  if (field.status === 'opaque') return 'Opaque Payload';
-  if (field.status === 'invalid') return 'Invalid value';
-  return 'Interpreted';
-}
-
-function fieldDisplayValue(field: Field): string {
-  if (field.status === 'opaque' || field.status === 'invalid') return `${fieldStatusLabel(field)} · ${formatValue(field.value)}`;
-  return field.status === 'absent' ? fieldStatusLabel(field) : formatValue(field.value);
 }
 
 function formatLabel(format: FormatId): string {
@@ -463,20 +453,6 @@ function renderByteStrip(inspection: Inspection, selection?: ByteSpan, interacti
   return `<div class="byte-strip" data-testid="byte-strip">${rows.join('')}</div>${limitNote}`;
 }
 
-function renderStructureLabels(inspection: Inspection, selection?: ByteSpan, interactive = false, dataPrefix = ''): string {
-  return inspection.structures.map((structure) => {
-    const active = selection ? spanIntersects(structure.span, selection) : false;
-    const tag = structure.type !== undefined && !PNG_TYPED_CHUNK_TYPES.has(structure.type)
-      ? 'Unknown chunk'
-      : structure.kind === 'payload' ? 'Payload' : structure.kind === 'header' ? 'Header' : 'Structure';
-    const content = `<span class="structure-index">${spanLabel(structure.span)}</span><span class="structure-copy"><strong>${escapeHtml(structure.label)}</strong><small>${tag} · ${structure.span.length} bytes</small></span>`;
-    const accessibleLabel = `${structure.label}, ${tag}, bytes ${spanLabel(structure.span)}${active ? ', selected' : ''}`;
-    return interactive
-      ? `<button class="structure-row${active ? ' is-selected' : ''}" type="button" data-${dataPrefix}structure-id="${escapeHtml(structure.id)}" aria-label="${escapeHtml(accessibleLabel)}" aria-controls="${dataPrefix ? 'landing-selection-summary' : 'field-inspector selection-summary'}" aria-pressed="${active}" aria-keyshortcuts="Enter Space ArrowDown ArrowUp">${content}</button>`
-      : `<div class="structure-row${active ? ' is-selected' : ''}">${content}</div>`;
-  }).join('');
-}
-
 function renderLandingSelectionNote(selection: ByteSpan): string {
   const resolution = resolveSelection(sample, selection);
   const selectedLabel = resolution.field?.label ?? resolution.structure?.label ?? resolution.unmapped?.label ?? 'Unmapped span';
@@ -531,7 +507,7 @@ function renderLanding(nextSelection: ByteSpan = landingSelection, focusSelector
             <div class="sample-plate-heading"><h2 id="sample-title">Sample: PNG <span>(first 24 bytes)</span></h2><span class="plate-line" aria-hidden="true"></span></div>
             <div class="sample-offsets" aria-hidden="true"><span>Offset</span><span>00</span><span>04</span><span>08</span><span>0C</span><span>14</span><span>18</span></div>
             ${renderByteStrip(sample, landingSelection, true, 'landing-', 24)}
-            <div class="landing-structure-map">${renderStructureLabels(sample, landingSelection, true, 'landing-')}</div>
+            <div class="landing-structure-map">${renderStructureTree(sample, landingSelection, true, 'landing-')}</div>
             ${renderLandingSelectionNote(landingSelection)}
             <figure class="source-preview-mini"><figcaption>Source preview · original-file rendering</figcaption><img src="${sourceDataUrl('png')}" alt="A one-pixel PNG Sample rendered as a tiny transparent image" /></figure>
           </div>
@@ -806,53 +782,6 @@ class VirtualByteGrid {
   }
 }
 
-function renderSemanticDetail(inspection: Inspection, resolution: SelectionResolution): string {
-  const structure = resolution.structure;
-  const selectedLabel = resolution.field?.label ?? structure?.label ?? resolution.unmapped?.label ?? 'Unmapped span';
-  const intersecting = resolution.intersectingFields.length > 0
-    ? `<p class="related-fields"><strong>Intersecting Fields</strong> ${resolution.intersectingFields.map((field) => escapeHtml(field.label)).join(' · ')}</p>`
-    : '';
-  const bitDetails = resolution.bitFields.length > 0
-    ? `<div class="semantic-subsection"><strong>Bit fields</strong>${resolution.bitFields.map((bitField) => `<span>${escapeHtml(bitField.label)} · mask 0x${bitField.mask.toString(16).toUpperCase().padStart(2, '0')}</span>`).join('')}</div>`
-    : '';
-  const derivedDetails = resolution.derivedValues.length > 0
-    ? `<div class="semantic-subsection"><strong>Derived values</strong>${resolution.derivedValues.map((derived) => `<span>${escapeHtml(derived.label)} = ${escapeHtml(formatValue(derived.value))}; sources: ${escapeHtml(derived.sourceFieldIds.join(', '))}</span>`).join('')}</div>`
-    : '';
-  const unmappedDetails = resolution.unmapped
-    ? `<div class="semantic-subsection unmapped-note"><strong>Unmapped span</strong><span>${escapeHtml(resolution.unmapped.reason ?? 'No parsed Structure or Field claims these bytes.')}</span></div>`
-    : '';
-  const diagnostics = inspection.diagnostics.filter((diagnostic) => spanIntersects(diagnostic.span, resolution.selection));
-  const diagnosticDetails = diagnostics.length > 0
-    ? `<div class="semantic-subsection diagnostic-list"><strong>Diagnostics</strong>${diagnostics.map((diagnostic) => `<span><button class="inline-copy" type="button" data-copy-kind="diagnostic" data-diagnostic-code="${escapeHtml(diagnostic.code)}">Copy ${escapeHtml(diagnostic.code)}</button> ${escapeHtml(diagnostic.message)}</span>`).join('')}</div>`
-    : '';
-  const byteTargetLabel = resolution.field ? 'Field bytes' : resolution.structure ? 'Structure bytes' : 'Selected bytes';
-  return `<div class="field-detail" data-testid="field-detail">
-      <div class="detail-kicker">Selected ${resolution.field ? 'Field' : 'Structure'}</div>
-      <h3>${escapeHtml(selectedLabel)}</h3>
-      ${resolution.field ? `<p class="detail-explanation">${escapeHtml(resolution.field.explanation)}</p>` : `<p class="detail-explanation">${escapeHtml(structure?.description ?? 'This Byte span is not claimed by a parsed Structure.')}</p>`}
-      <button class="inline-focus" type="button" data-focus-bytes aria-label="Focus ${escapeHtml(byteTargetLabel)} in the byte grid">Focus ${escapeHtml(byteTargetLabel)}</button>
-      ${intersecting}
-      <dl class="field-facts">
-        <div><dt>Byte span</dt><dd>${spanLabel(resolution.selection)} <span>(offset ${resolution.selection.offset}, ${resolution.selection.length} bytes)</span></dd></div>
-        ${resolution.field ? `<div><dt>Encoded</dt><dd class="mono">${resolution.field.encodedBytes.map(formatByte).join(' ')} <button class="inline-copy" type="button" data-copy-kind="field-bytes" data-field-id="${escapeHtml(resolution.field.id)}">Copy</button></dd></div><div><dt>${fieldStatusLabel(resolution.field)}</dt><dd>${escapeHtml(fieldDisplayValue(resolution.field))} <button class="inline-copy" type="button" data-copy-kind="field-value" data-field-id="${escapeHtml(resolution.field.id)}">Copy</button></dd></div><div><dt>Representation</dt><dd>${escapeHtml(resolution.field.representation)}${resolution.field.endianness && resolution.field.endianness !== 'n/a' ? ` · ${resolution.field.endianness}` : ''}</dd></div><div><dt>Offset</dt><dd class="mono">0x${formatOffset(resolution.field.span.offset, inspection.bytes.length)} / ${formatDecimalOffset(resolution.field.span.offset)} <button class="inline-copy" type="button" data-copy-kind="field-offset" data-field-id="${escapeHtml(resolution.field.id)}">Copy</button></dd></div>` : `<div><dt>Ownership</dt><dd>${escapeHtml(resolution.unmapped ? 'Unmapped span' : 'Structure span')}</dd></div>`}
-      </dl>
-      ${bitDetails}${derivedDetails}${unmappedDetails}${diagnosticDetails}
-    </div>`;
-}
-
-function renderFieldInspector(inspection: Inspection, resolution: SelectionResolution): string {
-  const structure = resolution.structure ?? inspection.structures[0];
-  const fields = structure?.fields.map((field) => {
-    const active = resolution.field?.id === field.id || resolution.intersectingFields.some((item) => item.id === field.id);
-    const statusLabel = fieldStatusLabel(field);
-    const accessibleLabel = `${field.label}, ${statusLabel} Field, bytes ${spanLabel(field.span)}${active ? ', selected' : ''}`;
-    return `<button class="field-row${active ? ' is-selected' : ''}" type="button" data-field-id="${escapeHtml(field.id)}" aria-label="${escapeHtml(accessibleLabel)}" aria-controls="selection-summary byte-grid" aria-pressed="${active}" aria-keyshortcuts="Enter Space ArrowDown ArrowUp"> <span class="field-label"><strong>${escapeHtml(field.label)}</strong><small>${spanLabel(field.span)} · ${field.span.length} bytes · ${statusLabel}</small></span><span class="field-value field-value-${statusLabel.toLowerCase().replace(/\s+/g, '-')}">${escapeHtml(fieldDisplayValue(field))}</span></button>`;
-  }).join('') ?? '';
-  const heading = structure
-    ? `<div class="field-structure-heading"><span class="plate-index">${spanLabel(structure.span)}</span><div><strong>${escapeHtml(structure.label)}</strong><small>${escapeHtml(structure.description)}</small></div></div>`
-    : '<p class="field-empty">No parsed Structure claims this Selection.</p>';
-  return `<div class="field-inspector" id="field-inspector"><div class="panel-heading"><span id="field-inspector-heading">Field inspector</span><span class="panel-rule" aria-hidden="true"></span></div>${heading}<div class="field-list" aria-labelledby="field-inspector-heading">${fields}</div>${renderSemanticDetail(inspection, resolution)}</div>`;
-}
 
 function renderNarrowTabs(activeTab: NarrowTab): string {
   const tabs: Array<{ id: NarrowTab; label: string }> = [
@@ -887,7 +816,7 @@ function renderNarrowInspectorLayout(
       <aside class="narrow-panel structure-panel${activeTab === 'structures' ? ' is-active' : ''}" id="narrow-panel-structures" data-testid="narrow-panel-structures" data-narrow-panel="structures" role="tabpanel" aria-labelledby="narrow-tab-structures"${hidden('structures')}>
         <div class="panel-heading"><span id="narrow-structure-heading">Structures</span><span class="panel-rule" aria-hidden="true"></span></div>
         <p class="panel-intro">Named parts in source-file order. Tap a Structure to follow its Byte span.</p>
-        <nav class="structure-list" aria-label="${displayFormat} Structures" data-semantic-list="structures">${renderStructureLabels(inspection, selection, true)}</nav>
+        <nav class="structure-list" aria-label="${displayFormat} Structures" data-semantic-list="structures">${renderStructureTree(inspection, selection, true)}</nav>
         <div class="structure-legend"><span class="legend-mark legend-structure" aria-hidden="true"></span><span>Structure boundary</span><span class="legend-mark legend-selection" aria-hidden="true"></span><span>Selected Byte span</span><span class="legend-mark legend-unmapped" aria-hidden="true"></span><span>Unmapped span</span></div>
       </aside>
       <section class="narrow-panel byte-panel${activeTab === 'bytes' ? ' is-active' : ''}" id="narrow-panel-bytes" data-testid="narrow-panel-bytes" data-narrow-panel="bytes" role="tabpanel" aria-labelledby="narrow-tab-bytes"${hidden('bytes')}>
@@ -964,7 +893,7 @@ function renderInspector(target: InspectionSession, requestedSelection?: ByteSpa
         ${renderDiagnostics(inspection)}
 
         ${narrow ? renderNarrowSelectionSummary(inspection, selection, selectedSummary, focusSemanticAction) + renderNarrowInspectorLayout(inspection, selection, resolution, activeNarrowTab, target.previewUrl, target.previewFailed) : `<div class="inspector-layout">
-          <aside class="structure-panel" aria-labelledby="structure-heading"><div class="panel-heading"><span id="structure-heading">Structures</span><span class="panel-rule" aria-hidden="true"></span></div><p class="panel-intro">Named parts in source-file order. Use Enter to select; use the arrow keys to move between Structures.</p><nav class="structure-list" aria-label="${displayFormat} Structures" data-semantic-list="structures">${renderStructureLabels(inspection, selection, true)}</nav><div class="structure-legend"><span class="legend-mark legend-structure" aria-hidden="true"></span><span>Structure boundary</span><span class="legend-mark legend-selection" aria-hidden="true"></span><span>Selected Byte span</span><span class="legend-mark legend-unmapped" aria-hidden="true"></span><span>Unmapped span</span></div></aside>
+          <aside class="structure-panel" aria-labelledby="structure-heading"><div class="panel-heading"><span id="structure-heading">Structures</span><span class="panel-rule" aria-hidden="true"></span></div><p class="panel-intro">Named parts in source-file order. Use Enter to select; use the arrow keys to move between Structures.</p><nav class="structure-list" aria-label="${displayFormat} Structures" data-semantic-list="structures">${renderStructureTree(inspection, selection, true)}</nav><div class="structure-legend"><span class="legend-mark legend-structure" aria-hidden="true"></span><span>Structure boundary</span><span class="legend-mark legend-selection" aria-hidden="true"></span><span>Selected Byte span</span><span class="legend-mark legend-unmapped" aria-hidden="true"></span><span>Unmapped span</span></div></aside>
 
           <section class="byte-panel" aria-labelledby="bytes-heading"><div class="panel-heading"><span id="bytes-heading">Bytes</span><span class="panel-rule" aria-hidden="true"></span><span class="panel-meta">16 bytes / row · virtualized</span></div><p class="panel-intro" id="byte-grid-help">Select a byte to focus its smallest matching Field. Shift-select or use arrow keys to extend the exact Selection. Raw-byte tab enumeration is optional.</p>
             <form class="goto-form" data-testid="goto-form"><label for="goto-offset">Go to offset</label><select id="goto-mode" aria-label="Offset notation"><option value="hex">Hexadecimal</option><option value="decimal">Decimal (explicit)</option></select><input id="goto-offset" data-testid="offset-input" name="offset" inputmode="text" autocomplete="off" placeholder="e.g. 0030" aria-describedby="offset-help offset-error" /><button class="button button-secondary" type="submit">Go</button><span id="offset-help" class="sr-only">Hexadecimal is the default. Choose Decimal explicitly for base ten.</span></form><p class="offset-error" id="offset-error" data-testid="offset-error" role="alert" hidden></p>
