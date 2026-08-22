@@ -3,12 +3,13 @@ import { expect, test } from '@playwright/test';
 test('the landing page proves the four-beat product path and enters a real Sample Inspection', async ({ page }) => {
   await page.goto('/');
 
-  await expect(page.getByRole('heading', { name: 'Read the file. See the structure.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Read the file. See its structure.' })).toBeVisible();
   await expect(page.getByTestId('landing-mini-inspector')).toBeVisible();
   await expect(page.getByRole('button', { name: /Open a file/ })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'A span is the explanation.' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Two Formats. One honest contract.' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Your file stays with you.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Learn the format while you inspect it.' })).toBeVisible();
   await expect(page.getByTestId('landing-beat-coverage').getByText('PNG', { exact: true })).toBeVisible();
   await expect(page.getByTestId('landing-beat-coverage').getByText('WAV', { exact: true })).toBeVisible();
 
@@ -20,6 +21,20 @@ test('the landing page proves the four-beat product path and enters a real Sampl
   await page.getByTestId('try-sample').click();
   await expect(page).toHaveURL(/\/inspect\?sample=png/);
   await expect(page.getByRole('heading', { name: 'Sample Inspection' })).toBeVisible();
+});
+
+test('the educational route opens Info and follows the selected Structure', async ({ page }) => {
+  await page.goto('/inspect?sample=png&panel=info');
+
+  await expect(page.getByRole('tab', { name: 'Info' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByTestId('inspection-info')).toContainText("The file's ID card");
+  await page.getByRole('button', { name: /IHDR · image header/ }).click();
+  await expect(page.getByTestId('inspection-info')).toContainText('The image blueprint');
+  await expect(page.getByTestId('inspection-info')).toContainText('Offsets 8 through 32');
+
+  await page.getByRole('tab', { name: 'Byte map' }).click();
+  await expect(page.getByTestId('byte-grid')).toBeVisible();
+  await expect(page).not.toHaveURL(/panel=info/);
 });
 
 test('the landing sheet remains keyboard-usable, motion-safe, and within the narrow viewport', async ({ page }) => {

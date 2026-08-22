@@ -1,318 +1,288 @@
 ---
 name: HexLens
-description: A calibrated local console for tracing binary files from Structure to exact bytes.
+description: An editorial byte map that makes binary structure readable, exact, and local.
 colors:
-  canvas: "#eef1f6"
-  canvas-dark: "#0c1019"
-  paper: "#fbfcfe"
-  paper-dark: "#121722"
-  paper-deep: "#f0f3f8"
-  paper-deep-dark: "#0e131d"
-  paper-quiet: "#f5f7fb"
-  paper-quiet-dark: "#171d29"
-  surface: "rgba(251, 252, 254, 0.94)"
-  surface-dark: "rgba(18, 23, 34, 0.95)"
-  surface-raised: "#ffffff"
-  surface-raised-dark: "#181e2a"
-  surface-sunken: "#edf1f7"
-  surface-sunken-dark: "#0b1019"
-  ink: "#172033"
-  ink-dark: "#edf0f7"
-  ink-soft: "#667085"
-  ink-soft-dark: "#9ca6b8"
-  rule: "rgba(23, 32, 51, 0.11)"
-  rule-dark: "rgba(226, 232, 244, 0.10)"
-  rule-strong: "rgba(23, 32, 51, 0.18)"
-  rule-strong-dark: "rgba(226, 232, 244, 0.18)"
-  cobalt: "#5b61f4"
-  cobalt-dark: "#8b90ff"
-  cobalt-deep: "#4147d7"
-  cobalt-deep-dark: "#a7aaff"
-  jade: "#187a66"
-  jade-dark: "#55c7ad"
-  focus: "#4057e3"
-  focus-dark: "#aab7ff"
-  accent-soft: "rgba(91, 97, 244, 0.10)"
-  accent-soft-dark: "rgba(139, 144, 255, 0.16)"
-  accent-softer: "rgba(91, 97, 244, 0.06)"
-  accent-softer-dark: "rgba(139, 144, 255, 0.08)"
-  success-soft: "rgba(24, 122, 102, 0.10)"
-  success-soft-dark: "rgba(85, 199, 173, 0.12)"
-  on-accent: "#ffffff"
+  canvas: "#f5f1e9"
+  canvas-dark: "#17130f"
+  paper: "#fffdf8"
+  paper-dark: "#211c17"
+  paper-deep: "#eee7dc"
+  paper-deep-dark: "#120f0c"
+  paper-quiet: "#f5f1e9"
+  paper-quiet-dark: "#2b241d"
+  ink: "#15130f"
+  ink-dark: "#faf4e9"
+  ink-soft: "#6d665c"
+  ink-soft-dark: "#b9afa0"
+  rule: "rgba(21, 19, 15, 0.15)"
+  rule-dark: "rgba(250, 244, 233, 0.14)"
+  rule-strong: "rgba(21, 19, 15, 0.28)"
+  rule-strong-dark: "rgba(250, 244, 233, 0.27)"
+  red: "#c43b24"
+  red-dark: "#a92f1b"
+  red-theme-dark: "#ff8068"
+  red-theme-dark-hover: "#ff9a86"
+  mint: "#14755d"
+  mint-dark: "#69d3b2"
+  focus: "#a72f1c"
+  focus-dark: "#ffac9b"
+  accent-soft: "#f7ddd6"
+  accent-soft-dark: "#4b2923"
+  success-soft: "#dfeee8"
+  success-soft-dark: "#173a30"
+  close: "#15130f"
+  close-ink: "#faf4e9"
+  close-soft: "#c3b8a8"
+  close-red: "#ff7359"
+  close-mint: "#72d8b6"
 typography:
   display:
     fontFamily: "'Manrope Variable', 'Manrope', sans-serif"
-    fontSize: "clamp(3.4rem, 6.2vw, 6rem)"
-    fontWeight: 650
-    lineHeight: 0.98
+    fontSize: "clamp(4rem, 7vw, 6rem)"
+    fontWeight: 550
+    lineHeight: 0.9
     letterSpacing: "-0.04em"
-  control:
-    fontFamily: "'Manrope Variable', 'Manrope', sans-serif"
-    fontSize: "0.82rem"
-    fontWeight: 620
-    lineHeight: 1
-    letterSpacing: "-0.01em"
   headline:
     fontFamily: "'Manrope Variable', 'Manrope', sans-serif"
-    fontSize: "clamp(2rem, 3.5vw, 3.5rem)"
-    fontWeight: 620
-    lineHeight: 1.05
-    letterSpacing: "-0.035em"
+    fontSize: "clamp(3rem, 6vw, 6rem)"
+    fontWeight: 540
+    lineHeight: 0.94
+    letterSpacing: "-0.04em"
   title:
     fontFamily: "'Manrope Variable', 'Manrope', sans-serif"
-    fontSize: "1.18rem"
-    fontWeight: 600
-    lineHeight: 1.2
+    fontSize: "1.45rem"
+    fontWeight: 620
+    lineHeight: 1.1
   body:
     fontFamily: "'Manrope Variable', 'Manrope', sans-serif"
     fontSize: "1rem"
     fontWeight: 450
-    lineHeight: 1.6
+    lineHeight: 1.7
   label:
     fontFamily: "'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, monospace"
-    fontSize: "0.72rem"
+    fontSize: "0.62rem"
     fontWeight: 450
     lineHeight: 1.35
-    letterSpacing: "0.02em"
+    letterSpacing: "0.05em"
+  control:
+    fontFamily: "'Manrope Variable', 'Manrope', sans-serif"
+    fontSize: "0.84rem"
+    fontWeight: 620
+    lineHeight: 1
+    letterSpacing: "normal"
 rounded:
   none: "0"
-  field: "10px"
-  structure: "12px"
-  control: "13px"
-  summary: "14px"
-  data-surface: "15px"
-  selection-note: "16px"
-  panel: "18px"
-  sample-plate: "20px"
-  shell: "24px"
+  control: "2px"
   circle: "50%"
 spacing:
   xs: "8px"
-  sm: "12px"
-  md: "16px"
-  lg: "24px"
-  xl: "32px"
-  shell: "clamp(12px, 2.4vw, 34px)"
-  panel: "clamp(24px, 2.6vw, 38px)"
-  landing-inline: "clamp(24px, 5.6vw, 90px)"
-  landing-block: "clamp(58px, 7vw, 112px)"
-  sample-plate: "clamp(22px, 3vw, 36px)"
+  sm: "14px"
+  md: "24px"
+  lg: "38px"
+  section: "clamp(96px, 10vw, 156px)"
+  hero-inline: "clamp(38px, 6vw, 100px)"
+  hero-block: "clamp(72px, 9vh, 120px)"
+  mobile-inline: "24px"
 components:
   button-primary:
-    backgroundColor: "{colors.cobalt}"
-    textColor: "{colors.on-accent}"
+    backgroundColor: "{colors.red}"
+    textColor: "{colors.close-ink}"
     typography: "{typography.control}"
     rounded: "{rounded.control}"
-    padding: "11px 18px"
-    height: "46px"
+    padding: "13px 24px"
+    height: "48px"
   button-secondary:
-    backgroundColor: "{colors.surface-raised}"
+    backgroundColor: "transparent"
     textColor: "{colors.ink}"
     typography: "{typography.control}"
     rounded: "{rounded.control}"
-    padding: "11px 18px"
-    height: "46px"
-  sheet:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.shell}"
-    padding: "0"
-  sample-inspector:
-    backgroundColor: "{colors.surface-raised}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.sample-plate}"
-    padding: "{spacing.sample-plate}"
-  data-grid:
-    backgroundColor: "{colors.surface-raised}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.data-surface}"
-    padding: "0"
-  selected-byte:
-    backgroundColor: "{colors.cobalt}"
-    textColor: "{colors.on-accent}"
-    rounded: "{rounded.none}"
-    height: "44px"
+    padding: "13px 24px"
+    height: "48px"
   theme-toggle:
-    backgroundColor: "{colors.surface-raised}"
+    backgroundColor: "transparent"
     textColor: "{colors.ink-soft}"
     rounded: "{rounded.control}"
-    width: "42px"
-    height: "42px"
+    width: "40px"
+    height: "40px"
+  offset-input:
+    backgroundColor: "{colors.paper-quiet}"
+    textColor: "{colors.ink}"
+    typography: "{typography.label}"
+    rounded: "{rounded.none}"
+    padding: "8px 10px"
+    height: "40px"
+  structure-row-selected:
+    backgroundColor: "{colors.accent-soft}"
+    textColor: "{colors.ink}"
+    rounded: "{rounded.none}"
+    padding: "8px 10px"
+    height: "54px"
+  byte-cell-selected:
+    backgroundColor: "{colors.red}"
+    textColor: "{colors.close-ink}"
+    rounded: "{rounded.none}"
+    padding: "13px 2px"
+    height: "44px"
+  info-panel:
+    backgroundColor: "{colors.paper}"
+    textColor: "{colors.ink}"
+    rounded: "{rounded.none}"
+    padding: "clamp(70px, 8vw, 130px)"
 ---
 
 # Design System: HexLens
 
 ## Overview
 
-**Creative North Star: “Calibrated Lens Console.”**
+**Creative North Star: “Editorial Split.”**
 
-HexLens is a quiet optical workspace for making binary structure legible. Neutral light and dark environments keep the file itself in focus; Manrope carries the interface and explanation, while JetBrains Mono gives bytes, offsets, labels, and data a stable measuring grid. Cobalt marks the current Selection and action path. Jade marks local-only status and healthy progress.
+HexLens is a full-screen editorial exchange between a promise and its proof. The landing route gives an oversized manifesto headline the left side of the page and a live byte/Structure proof the right side. Warm paper, near-black ink, restrained red, and hard rules make the binary file feel like a readable artifact rather than a terminal wall. Manrope carries the argument; JetBrains Mono measures offsets, bytes, and compact labels.
 
-The landing route presents a readable promise beside a live PNG mini-inspector. The Sample Inspection expands that relationship into a three-pane desktop console: Structures, raw Bytes, and a Field inspector. Surfaces have a soft offset lift, data areas use inset depth, and the landing inspector has a slight optical perspective. The product remains client-only and read-only: a Source preview is explicitly an original-file rendering, never parsed output.
+The Inspector keeps a Structure rail beside a large Map workspace, with Info as the educational counterpart. A selected Structure or byte is one semantic thread: it updates the raw span, Field interpretation, and the lesson that explains why the span exists. The mobile Inspector turns that workspace into four tabs—Structures, Bytes, Fields, and Info—while preserving the same Selection.
 
 **Key Characteristics:**
 
-- Neutral, theme-aware light and dark console environments.
-- Self-hosted Manrope for interface text and JetBrains Mono for bytes and data.
-- Cobalt Selection state paired with jade local/privacy status.
-- Soft offset shell and panel depth with inset data surfaces.
-- Responsive three-pane desktop inspection and three-tab mobile inspection.
+- Asymmetrical editorial landing with a live PNG proof and substantive ruled sections.
+- Warm paper light mode paired with a near-black warm dark mode.
+- Red is the action and Selection signal; mint is reserved for local/ready status.
+- Square controls, hard rules, flat surfaces, and almost no ornament or shadow.
+- Manrope for display/body; JetBrains Mono for technical data and labels.
+- One Selection synchronizes Structure, bytes, Fields, and an educational Info lesson.
 
 ## Colors
 
-The palette is intentionally restrained: cool neutrals establish the console, cobalt identifies the current semantic path, and jade identifies local/privacy state. The light values are the default; the dark values are the paired data-theme="dark" environment.
+The palette behaves like a printed page: paper and ink establish the field, red marks the current action or semantic Selection, and mint marks local ownership or readiness. Dark mode keeps the same roles in a near-black, warm register.
 
 ### Primary
 
-- **Cobalt** ("#5b61f4" light / "#8b90ff" dark): The primary Selection color for selected Byte cells, Structure and Field state, active mobile tabs, primary actions, and the landing span bracket.
-- **Cobalt Deep** ("#4147d7" light / "#a7aaff" dark): The stronger cobalt used for hover, compact labels, and text-safe emphasis around a selected state.
-- **Focus Cobalt** ("#4057e3" light / "#aab7ff" dark): The keyboard focus ring; it stays distinct from the filled Selection state.
+- **Signal Red** (`#c43b24`): The primary action, selected byte fill, and active interaction cue in light mode.
+- **Deep Signal Red** (`#a92f1b`): Hover, label-safe emphasis, and red text on light paper.
+- **Dark Signal Red** (`#ff8068`): The dark-theme Selection/action signal; its hover value is `#ff9a86`.
 
 ### Secondary
 
-- **Jade** ("#187a66" light / "#55c7ad" dark): Local-only status, privacy copy, healthy operation status, and ownership boundaries. Jade is not a substitute for the selected-span signal.
+- **Local Mint** (`#14755d`): Local-only, ready, healthy, and ownership status. It is never a second Selection color.
+- **Dark Local Mint** (`#69d3b2`): The same status role in dark mode.
 
 ### Neutral
 
-- **Canvas** ("#eef1f6" light / "#0c1019" dark): The browser-edge field and page background, with a quiet radial accent wash.
-- **Paper** ("#fbfcfe" light / "#121722" dark): The main shell and inspector panel background.
-- **Deep Paper** ("#f0f3f8" light / "#0e131d" dark): The inset band behind inspector columns and mobile tabs.
-- **Quiet Paper** ("#f5f7fb" light / "#171d29" dark): Status bands, offset labels, and small supporting surfaces.
-- **Surface** ("rgba(251, 252, 254, 0.94)" light / "rgba(18, 23, 34, 0.95)" dark): The translucent rounded shell surface.
-- **Raised Surface** ("#ffffff" light / "#181e2a" dark): Primary cards, the live sample inspector, and the data grid.
-- **Sunken Surface** ("#edf1f7" light / "#0b1019" dark): Source preview backing and other recessed content.
-- **Ink** ("#172033" light / "#edf0f7" dark): Primary foreground and high-priority structure text.
-- **Soft Ink** ("#667085" light / "#9ca6b8" dark): Supporting copy, metadata, hints, and secondary labels.
-- **Rule** ("rgba(23, 32, 51, 0.11)" light / "rgba(226, 232, 244, 0.10)" dark): Quiet dividers and panel boundaries.
-- **Strong Rule** ("rgba(23, 32, 51, 0.18)" light / "rgba(226, 232, 244, 0.18)" dark): Controls, shell edges, and the stronger end of the data grid.
-- **On Accent** ("#ffffff"): Text and byte values on filled cobalt.
+- **Canvas Paper** (`#f5f1e9`): Browser-edge and ruled landing-section field.
+- **Warm Paper** (`#fffdf8`): Proof surfaces, Inspector workspaces, and readable content areas.
+- **Deep Paper** (`#eee7dc`): Recessed bands and dark-mode structural contrast.
+- **Ink** (`#15130f`): Primary text, hard rules, and active tab surfaces in light mode.
+- **Soft Ink** (`#6d665c`): Supporting copy, metadata, and explanatory text.
+- **Rule** (`rgba(21, 19, 15, 0.15)`): Quiet dividers; **Strong Rule** (`rgba(21, 19, 15, 0.28)`) marks structural boundaries.
+- **Warm Dark Canvas** (`#17130f`) and **Warm Dark Paper** (`#211c17`): Dark-mode background and workspace surfaces.
+- **Dark Ink** (`#faf4e9`) and **Dark Soft Ink** (`#b9afa0`): Dark-mode foreground and supporting copy.
 
 ### Named Rules
 
-**The Cobalt Selection Rule.** Cobalt means “this is the current semantic path.” Pair it with labels, outlines, ownership boundaries, or summaries so Selection is never communicated by color alone.
+**The One Red Signal Rule.** Red means action or the current semantic Selection. Do not spend it on decoration.
 
-**The Jade Local Rule.** Jade is reserved for local/privacy status, healthy operation, and ownership cues. Do not use it as a second selection color.
+**The Mint Local Rule.** Mint means local, ready, or healthy status. It never means “selected.”
 
 ## Typography
 
-**Display Font:** Self-hosted Manrope Variable, with Manrope and sans-serif fallbacks.
+**Display Font:** Manrope Variable, with Manrope and sans-serif fallbacks.
 
-**Body Font:** Self-hosted Manrope Variable, with Manrope and sans-serif fallbacks.
+**Body Font:** Manrope Variable, with Manrope and sans-serif fallbacks.
 
-**Label/Mono Font:** Self-hosted JetBrains Mono Variable, with JetBrains Mono, ui-monospace, and monospace fallbacks.
+**Label/Mono Font:** JetBrains Mono Variable, with JetBrains Mono, ui-monospace, and monospace fallbacks.
 
-**Character:** Manrope keeps the console calm, contemporary, and highly legible at compact sizes. JetBrains Mono gives offsets, hex values, status labels, and Field facts a precise rhythm without turning explanatory copy into terminal chrome.
+**Character:** Manrope is direct, contemporary, and editorial at display scale while remaining calm in explanatory copy. JetBrains Mono is a measuring instrument for bytes, offsets, status labels, and small technical facts—not a replacement for prose.
 
 ### Hierarchy
 
-- **Display** (650, clamp(3.4rem, 6.2vw, 6rem), 0.98 line-height, -0.04em tracking): The landing promise and the largest empty-state headings.
-- **Headline** (620, clamp(2rem, 3.5vw, 3.5rem), 1.05 line-height, -0.035em tracking): Landing beat headings and the local close.
-- **Title** (600, 1.18rem, approximately 1.2 line-height): Structure headings and selected semantic labels. Toolbar context is intentionally smaller at 0.95rem and weight 520.
-- **Body** (450, roughly 0.98rem–1.3rem, 1.58–1.65 line-height): Promise copy, explanations, Field notes, and support text; keep readable copy in a moderate measure.
-- **Label** (450, 0.6rem–0.82rem, 1.35 line-height, 0.02em–0.08em tracking): Bytes, offsets, status, captions, controls, Diagnostics, and compact metadata.
+- **Display** (550, `clamp(4rem, 7vw, 6rem)`, 0.9 line-height, -0.04em tracking): The landing manifesto and Info lesson title.
+- **Headline** (540, `clamp(3rem, 6vw, 6rem)`, 0.94 line-height, -0.04em tracking): Ruled landing beats and closing statements.
+- **Title** (620, approximately 1.45rem, 1.1 line-height): Proof headings, selected Structure names, and key panel titles.
+- **Body** (450, approximately 1rem, 1.7 line-height): Promise copy, format explanations, and lesson prose; keep it in a moderate readable measure.
+- **Label** (450, 0.62rem, 1.35 line-height, 0.05em tracking): Offsets, byte values, statuses, captions, and compact technical metadata.
+- **Control** (620, 0.84rem, 1 line-height): Button and tab labels; use sentence case unless a technical label is intentionally mono.
 
 ### Named Rules
 
-**The Two-Register Rule.** Manrope explains the file and carries hierarchy; JetBrains Mono measures it. Use the mono face for data, not for every sentence.
+**The Two-Register Rule.** Manrope explains the file; JetBrains Mono measures it.
 
-**The Immediate Contrast Rule.** When the theme changes, foreground text changes immediately with the token set. Do not fade text or leave a light-mode foreground in the dark environment.
+**The No-Kicker Rule.** Do not add small eyebrow or kicker labels above headings. Let the headline and rule carry the hierarchy.
 
 ## Layout
 
-The app lives at / and /inspect; the deterministic PNG entry is /inspect?sample=png. The outer app shell uses clamp(12px, 2.4vw, 34px) page padding and centers a shell capped at 1500px. Desktop shells have a 24px radius; at phone width the app flushes to the viewport and the shell becomes square and shadowless.
+The landing is a full-width, asymmetrical split. A sticky, ruled navigation bar sits above a first viewport with a left manifesto and a wider right proof panel. The hero uses approximately `0.82fr / 1.18fr`; the left column is separated by a hard vertical rule. The proof is a live byte strip followed by a source-order Structure map, not a decorative mockup.
 
-The landing route uses a two-column promise-to-inspector grid: approximately .84fr / 1.16fr, with the live Sample inspector on the wider side. The first viewport keeps the promise, the Try the sample action, local-only note, and the first 24 PNG bytes visible together. Supporting sections continue as full-width ruled beats for the Selection mechanism, PNG/WAV coverage, and local-only close.
+Below the hero, substantive editorial sections alternate warm paper and canvas fields: the Bytes/Structure/Meaning connection rows, PNG/WAV coverage ledger, an educational Info invitation, and the local-only close. Sections use generous `clamp(96px, 10vw, 156px)` vertical padding and hard horizontal rules rather than card stacks.
 
-The desktop Sample Inspection uses three columns: Structure tree, dominant Bytes, and Field inspector, approximately .72fr / 1.72fr / .9fr. The middle column owns the widest measure. It presents the toolbar, status, local-file ingress, Diagnostics, a virtualized 16-bytes-per-row grid, a persistent selected-span summary, and a Source preview. The grid keeps a bounded DOM window while preserving the full row and column counts for assistive technology.
-
-Responsive behavior is structural, not merely smaller type:
-
-- At 1120px, masthead and inspector columns tighten while the three-pane model remains.
-- At 900px, the landing stacks, the sample perspective is removed, and the Field inspector moves below Structures and Bytes.
-- At 620px, the shell is edge-to-edge, actions become full width, and the inspector exposes Structures, Bytes, and Fields as keyboard-operable tabs. The byte grid keeps a minimum internal width and scrolls horizontally when necessary so byte identity is not compressed away.
+The Inspector is a two-part workspace: a Structure rail on the left and a large Map or Info workspace on the right. Map contains the virtualized 16-bytes-per-row grid, offset controls, Selection summary, Fields, and the original-file Source preview. Info replaces the Map workspace with a lesson tied to the current Selection. At `980px`, the Inspector rail and workspace become a horizontally scrollable two-column model; at `620px`, the landing stacks, controls become full width, and the Inspector becomes four keyboard-operable tabs: Structures, Bytes, Fields, and Info. The byte grid keeps a minimum internal width and scrolls rather than compressing byte identity.
 
 ## Elevation & Depth
 
-This is a soft layered system. The outer shell and raised panels use offset shadows; the byte grid and selected-span summary use inset shadows to read as measured data surfaces; a restrained translucent surface and background wash keep the environment from feeling flat. The landing sample plate adds perspective(1100px) rotateY(-1.5deg) rotateX(.75deg) as a small optical cue only; it is removed when the landing stacks at 900px.
+Editorial Split is flat by default. The final production layer removes shell and panel shadows, backdrop blur, perspective, and ornamental lifts. Depth comes from warm-paper tonal changes, a restrained accent wash, hard rules, borders, and the red Selection fill. The primary action retains a small functional control shadow so it reads as actionable; all other depth should remain structural and quiet.
 
 ### Shadow Vocabulary
 
-- **Shell lift:** 0 28px 70px rgba(31, 42, 68, 0.14), 0 4px 14px rgba(31, 42, 68, 0.06) in light mode; 0 30px 80px rgba(0, 0, 0, 0.48), 0 4px 18px rgba(0, 0, 0, 0.26) in dark mode.
-- **Panel lift:** 0 16px 40px rgba(31, 42, 68, 0.10), 0 2px 8px rgba(31, 42, 68, 0.05) in light mode; 0 18px 45px rgba(0, 0, 0, 0.32), 0 2px 10px rgba(0, 0, 0, 0.18) in dark mode.
-- **Control lift:** 0 7px 16px rgba(65, 71, 215, 0.22), 0 2px 4px rgba(65, 71, 215, 0.12) in light mode; 0 8px 20px rgba(0, 0, 0, 0.34), 0 2px 5px rgba(139, 144, 255, 0.18) in dark mode.
-- **Inset data:** inset 0 1px 2px rgba(23, 32, 51, 0.07) in light mode and inset 0 1px 2px rgba(0, 0, 0, 0.28) in dark mode.
+- **Action control:** `0 10px 24px rgba(173, 49, 28, 0.18)` in light mode and `0 10px 26px rgba(0, 0, 0, 0.3)` in dark mode; only for primary actions.
+- **Everything else:** no shell, panel, card, or data-surface shadow. Use rules, tonal layering, and selected outlines.
 
 ### Named Rules
 
-**The Calibrated Depth Rule.** Use one clear lift for a coherent surface and inset treatment for data. Shadows should clarify hierarchy and interaction, never turn the console into a stack of floating tiles.
+**The Flat Paper Rule.** If a boundary, tone, or rule can establish hierarchy, do not add a shadow.
 
 ## Shapes
 
-The form language is rounded but controlled. The shell is 24px; the landing inspector is 20px; ledgers are 18px; the selected-span summary is 14px; controls are 13px; Structure rows are 12px; Field rows are 10px; and the data grid is 15px. Borders remain 1px and low-contrast by default. Filled Selection uses a cobalt outline/trace and a short lock-in animation rather than a new geometry.
-
-Circles are reserved for the wordmark lens, status pulse, and small status marks. Mobile removes shell rounding entirely, and the landing perspective is not used below the stack breakpoint. Preserve generous hit areas: primary controls are 46px high, the theme toggle is 42px square, and mobile tabs are at least 48px high.
+The form language is square and typographic. Controls use a barely softened `2px` corner; byte cells, panels, ledgers, tabs, and selection summaries are square (`0`). Circles are reserved for the small local/ready status mark and the wordmark lens. Borders are generally 1px, with stronger ink rules for the page’s major divisions and the selected byte span. Avoid pills, chips, floating rounded cards, and decorative corner treatments.
 
 ## Components
 
 ### Buttons
 
-- **Shape:** 13px radius, 1px quiet rule, 46px minimum height, 11px 18px padding.
-- **Primary:** Cobalt fill with white text, Manrope label, a short arrow gap, and control lift. Hover deepens to Cobalt Deep; active returns to its resting position.
-- **Secondary:** Raised neutral surface with Ink text and a quiet control shadow. Hover adds a cobalt border/text cue; disabled actions use Soft Ink and no shadow.
-- **Focus:** A 2px Focus Cobalt outline with a 3px offset is shared by buttons, links, inputs, selects, tabs, and the grid viewport.
+- **Shape:** Square with a barely softened 2px corner, 1px boundary, and at least 48px height.
+- **Primary:** Signal Red fill with warm light text, Manrope control type, and an authored inline SVG arrow separated by a deliberate gap. Hover deepens the red; active state returns to rest.
+- **Secondary:** Transparent paper field with a strong rule and Ink text. It supports file ingress and low-priority actions without becoming a pill.
+- **Focus:** A 3px Focus Red outline with a 4px offset is shared by buttons, links, inputs, tabs, and the byte grid.
 
 ### Theme Toggle
 
-The 42px square control uses a 13px radius and a raised neutral surface. Sun and moon SVGs cross-fade/rotate briefly, while the document foreground swaps immediately. initializeTheme uses the system preference when no value is saved; toggleTheme persists light or dark under the hexlens-theme local-storage key.
+The 40px square control is transparent with a quiet rule. Its authored sun/moon SVGs transition briefly, while the document foreground and color scheme change immediately. The preference persists under `hexlens-theme`; system preference is used when no value is saved.
 
-### Empty Inspector and File Ingress
+### Navigation
 
-The empty desktop Inspector invites the visitor to “Bring a PNG or WAV into focus.” Its local-file ingress says the file may be dropped “anywhere in this window.” Keep this direct optical language aligned with the Calibrated Lens Console; preserve the local-only constraint and do not imply broader Format coverage.
+The landing navigation is sticky, short, and ruled. It uses a wordmark at left, two quiet links centered, and the theme toggle at right. The Inspector toolbar follows the same hard-line language and uses an authored inline SVG arrow for “Back to landing.” Never type an arrow glyph into copy.
 
-### Cards / Containers
+### Structure Rail
 
-- **Shell:** A single translucent rounded surface, capped at 1500px, with the shell lift. It contains each route rather than fragmenting the page into metric tiles.
-- **Landing live inspector:** The raised sample plate is the signature surface: 20px radius, panel lift, inset data treatments, and slight perspective on wide screens.
-- **Inspector panes:** Structure, Bytes, and Field panes are semantic columns separated by the Deep Paper gutter. They use raised Paper backgrounds and responsive panel padding.
-- **Mechanism and coverage ledgers:** Raised 18px-radius surfaces with quiet row rules; hover may reveal a subtle accent wash.
+Structure entries are semantic buttons in source-file order. Rows are square, at least 54px high in the landing proof, and separated by quiet rules. A selected row uses the pale red accent wash, a visible boundary, and `aria-pressed`; nesting and span metadata remain legible in mono/soft ink. The legend distinguishes Structure boundary, selected Byte span, and unmapped span without color alone.
 
-### Structure Tree
+### Byte Map and Span Selection
 
-Structure rows are semantic buttons with a 12px radius, source-order labels, spans, and concise type/size metadata. Hover uses a neutral surface; selection uses a pale cobalt wash, cobalt edge, and aria-pressed state. Nested children retain a visible boundary. The legend distinguishes Structure boundary, selected Byte span, and Unmapped span without relying on color alone.
-
-### Byte Grid and Span Selection
-
-The byte grid renders 16 bytes per row with JetBrains Mono, hexadecimal offsets, optional ASCII, and a bounded virtualized row window. A selected Byte span receives a cobalt fill, outline, ownership boundary, and an accessible summary. Shift-selection and arrow keys extend an exact span; Go to offset accepts hexadecimal by default and decimal only when explicitly chosen. The selection model is shared: one selected span updates the Structure tree, raw byte cells, Field rows, Field facts, copy actions, and Source preview context together.
+The byte map uses JetBrains Mono, hexadecimal offsets, 16 bytes per row, optional ASCII, and a bounded virtualized row window. A selected span receives a red fill and outline; Structure ownership boundaries remain visible in mint or dashed soft ink. Shift-selection and arrow keys extend an exact span. The shared Selection updates Structure, bytes, Fields, copy actions, Source preview context, and Info lesson together.
 
 ### Field Inspector
 
-The Field inspector keeps the selected Structure heading, Field list, interpreted value/status, encoded bytes, representation, endianness, and decimal/hex offsets in one semantic column. Intersecting Fields, Bit fields, Derived values, Unmapped spans, and Diagnostics appear as subordinate subsections. Inline actions can copy bytes or refocus the grid without breaking the current Selection.
+Fields are ruled rows with a readable label, compact value, encoded bytes, representation, endianness, and decimal/hex offsets. The selected Field uses the red semantic cue; values use mono and mint only where they communicate local/healthy data. Source preview is always labeled “original-file rendering” and remains subordinate to parsed Structure and Field information.
 
-### Mobile Inspector Tabs
+### Info Workspace
 
-At the narrow breakpoint, the three desktop panes become Structures, Bytes, and Fields tabs. The active tab gets a cobalt underline or raised neutral tab surface; hidden panels are removed from layout, and tab arrows/Home/End provide keyboard navigation. Selection remains global while the visible panel changes.
-
-### Source Preview
-
-The Source preview is always labeled original-file rendering. PNG uses the tiny native image rendering and WAV uses a native audio control; the preview is subordinate to Structure, Byte, and Field data and is never described as parser output.
+Info is the educational workspace, not a modal card. It replaces the Map content on desktop and occupies a ruled, generous paper field. The current lesson title, meaning, “How to read it,” “Where it sits,” and the selected source bytes all follow the active Selection. On mobile it is the fourth tab and preserves the same lesson contract.
 
 ## Do's and Don'ts
 
 ### Do:
 
-- **Do** keep the local-only promise, deterministic Sample action, and real Byte-to-Structure relationship visible early.
-- **Do** use Manrope for hierarchy and explanation and JetBrains Mono for bytes, offsets, statuses, and compact data.
-- **Do** reserve cobalt for the current Selection/action path and jade for local/privacy and healthy status.
-- **Do** preserve the one-span synchronization contract across Structure, raw bytes, and Field inspector.
-- **Do** keep the desktop three-pane model and the mobile tab model legible at their respective breakpoints.
-- **Do** change foreground tokens immediately when themes switch and honor prefers-reduced-motion.
-- **Do** label every Source preview as original-file rendering and keep opaque Payload bytes opaque.
+- **Do** lead with the editorial split: oversized promise on the left, live byte/Structure proof on the right.
+- **Do** use hard rules, warm paper tones, square controls, and restrained spacing to make hierarchy legible.
+- **Do** reserve red for action and Selection, and mint for local/ready status.
+- **Do** keep one Selection synchronized across Structure, bytes, Fields, Source preview context, and Info.
+- **Do** preserve the two-pane desktop Inspector and four-tab mobile Inspector model.
+- **Do** use Manrope for explanation and JetBrains Mono for measured data.
+- **Do** keep compressed PNG/WAV Payload bytes opaque and label previews as original-file rendering.
+- **Do** honor keyboard focus, roving tab behavior, and prefers-reduced-motion.
 
 ### Don't:
 
-- **Don't** reintroduce the replaced warm paper, editorial serif, oxide, verdigris, hairline-registration, or paper-and-ink visual system.
-- **Don't** turn HexLens into a terminal wall, metric dashboard, or collection of unrelated floating cards.
-- **Don't** use jade to imply the current Selection or cobalt to imply privacy.
-- **Don't** animate foreground text through a theme change or add decorative motion longer than the functional state response.
-- **Don't** decode Payload content in the Source preview or present browser rendering as parsed output.
-- **Don't** collapse the byte grid until offsets and exact spans become ambiguous; preserve the internal scroll on narrow screens.
+- **Don't** reintroduce the replaced cool-blue console, editorial serif, rounded shell, floating card, gradient, or shadow-heavy system.
+- **Don't** add small eyebrow/kicker labels above headings, decorative pills/chips, or gratuitous ornament.
+- **Don't** use mint to imply Selection or red to imply privacy/local ownership.
+- **Don't** type arrow glyphs; use the authored inline SVG arrow treatment.
+- **Don't** turn the landing or Inspector into a terminal wall, metric dashboard, or unrelated tile collection.
+- **Don't** decode opaque Payload content or describe browser rendering as parsed output.
+- **Don't** collapse the byte grid until offsets and exact spans become ambiguous; preserve internal scroll on narrow screens.

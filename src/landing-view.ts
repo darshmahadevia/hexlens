@@ -1,8 +1,11 @@
 import type { ByteSpan, Inspection } from './domain/inspection.ts';
-import { BYTES_PER_ROW, asciiLabel, formatByte, formatDecimalOffset, formatOffset, normalizeSelection, resolveSelection, selectionHex } from './domain/byte-grid.ts';
+import { BYTES_PER_ROW, asciiLabel, formatByte, formatOffset, normalizeSelection, resolveSelection, selectionHex } from './domain/byte-grid.ts';
 import { spanLabel } from './domain/inspection.ts';
 import { renderStructureTree } from './structure-tree.ts';
 import { renderThemeToggle } from './theme.ts';
+import { arrowIcon } from './icons.ts';
+
+type LandingRoute = '/' | '/inspect' | `/inspect?sample=${'png' | 'wav'}` | `/inspect?sample=${'png' | 'wav'}&panel=info`;
 
 export interface LandingViewOptions {
   mount: HTMLDivElement;
@@ -10,7 +13,7 @@ export interface LandingViewOptions {
   getSelection: () => ByteSpan;
   setSelection: (selection: ByteSpan) => void;
   isNarrow: () => boolean;
-  routeHref: (route: '/' | '/inspect' | `/inspect?sample=${'png' | 'wav'}`) => string;
+  routeHref: (route: LandingRoute) => string;
   renderFileIngress: (disabled?: boolean) => string;
   renderNotice: () => string;
   operationPhase: () => string;
@@ -18,36 +21,53 @@ export interface LandingViewOptions {
   sourceDataUrl: (format: Inspection['format']) => string;
 }
 
-function escapeHtml(value: string): string { return value.replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '\"': '&quot;' })[character] ?? character); }
-function formatValue(value: string | number): string { return typeof value === 'number' ? value.toLocaleString('en-US') : value; }
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character] ?? character);
+}
+
+function formatValue(value: string | number): string {
+  return typeof value === 'number' ? value.toLocaleString('en-US') : value;
+}
 
 let activeOptions: LandingViewOptions;
 let selection: ByteSpan;
 
-function renderByteStrip(inspection: Inspection, selection?: ByteSpan, interactive = false, dataPrefix = '', maxBytes?: number): string {
+function renderByteStrip(inspection: Inspection, selected?: ByteSpan, interactive = false, dataPrefix = '', maxBytes?: number): string {
   const visibleCount = Math.min(inspection.bytes.length, maxBytes ?? (interactive ? inspection.bytes.length : 24));
   const visibleBytes = inspection.bytes.slice(0, visibleCount);
   const limitNote = visibleCount < inspection.bytes.length ? `<span class="plate-caption">first ${visibleCount} bytes</span>` : '';
   const rows: string[] = [];
   for (let start = 0; start < visibleBytes.length; start += BYTES_PER_ROW) {
     const rowEnd = Math.min(start + BYTES_PER_ROW, visibleBytes.length);
-    const selectedStart = selection ? Math.max(start, selection.offset) : start;
-    const selectedEnd = selection ? Math.min(rowEnd, selection.offset + selection.length) : start;
+    const selectedStart = selected ? Math.max(start, selected.offset) : start;
+    const selectedEnd = selected ? Math.min(rowEnd, selected.offset + selected.length) : start;
     const selectedLength = Math.max(0, selectedEnd - selectedStart);
     const bracket = selectedLength > 0 ? `<span class="span-bracket" style="--selection-start: ${selectedStart - start}; --selection-length: ${selectedLength}" aria-hidden="true"></span>` : '';
-    const cells = Array.from(visibleBytes.slice(start, start + BYTES_PER_ROW), (value, index) => { const offset = start + index; const isSelected = selection ? offset >= selection.offset && offset < selection.offset + selection.length : false; const label = `${formatByte(value)} at offset ${formatOffset(offset, inspection.bytes.length)}; ${asciiLabel(value)}`; return interactive ? `<button class="byte-cell${isSelected ? ' is-selected' : ''}" type="button" data-${dataPrefix}byte-offset="${offset}" aria-label="${escapeHtml(label)}" aria-pressed="${isSelected}">${formatByte(value)}</button>` : `<span class="byte-cell${isSelected ? ' is-selected' : ''}" aria-label="${escapeHtml(label)}">${formatByte(value)}</span>`; }).join('');
-    rows.push(`<div class="byte-row"><span class="byte-offset">${formatOffset(start, inspection.bytes.length)}</span><div class="byte-cells${selectedLength > 0 ? ' has-selection' : ''}">${bracket}${cells}</div><span class="ascii-gutter" aria-label="ASCII for offsets ${formatOffset(start, inspection.bytes.length)}–${formatOffset(rowEnd - 1, inspection.bytes.length)}">${Array.from(visibleBytes.slice(start, start + BYTES_PER_ROW), (value) => value >= 32 && value <= 126 ? String.fromCharCode(value) : '·').join('')}</span></div>`);
+    const cells = Array.from(visibleBytes.slice(start, start + BYTES_PER_ROW), (value, index) => {
+      const offset = start + index;
+      const isSelected = selected ? offset >= selected.offset && offset < selected.offset + selected.length : false;
+      const label = `${formatByte(value)} at offset ${formatOffset(offset, inspection.bytes.length)}; ${asciiLabel(value)}`;
+      return interactive
+        ? `<button class="byte-cell${isSelected ? ' is-selected' : ''}" type="button" data-${dataPrefix}byte-offset="${offset}" aria-label="${escapeHtml(label)}" aria-pressed="${isSelected}">${formatByte(value)}</button>`
+        : `<span class="byte-cell${isSelected ? ' is-selected' : ''}" aria-label="${escapeHtml(label)}">${formatByte(value)}</span>`;
+    }).join('');
+    const ascii = Array.from(visibleBytes.slice(start, start + BYTES_PER_ROW), (value) => value >= 32 && value <= 126 ? String.fromCharCode(value) : '·').join('');
+    rows.push(`<div class="byte-row"><span class="byte-offset">${formatOffset(start, inspection.bytes.length)}</span><div class="byte-cells${selectedLength > 0 ? ' has-selection' : ''}">${bracket}${cells}</div><span class="ascii-gutter" aria-label="ASCII for offsets ${formatOffset(start, inspection.bytes.length)}–${formatOffset(rowEnd - 1, inspection.bytes.length)}">${ascii}</span></div>`);
   }
   return `<div class="byte-strip" data-testid="byte-strip">${rows.join('')}</div>${limitNote}`;
 }
 
-function renderLandingSelectionNote(selection: ByteSpan): string {
-  const resolution = resolveSelection(activeOptions.sample, selection);
+function renderLandingSelectionNote(selected: ByteSpan): string {
+  const resolution = resolveSelection(activeOptions.sample, selected);
   const selectedLabel = resolution.field?.label ?? resolution.structure?.label ?? resolution.unmapped?.label ?? 'Unmapped span';
   const explanation = resolution.field?.explanation ?? resolution.structure?.description ?? resolution.unmapped?.reason ?? 'No parsed Structure or Field claims this Byte span.';
   const value = resolution.field ? formatValue(resolution.field.value) : resolution.structure ? `${resolution.structure.span.length} bytes` : '—';
-  const encoded = resolution.field?.encodedBytes.map(formatByte).join(' ') ?? selectionHex(activeOptions.sample.bytes, selection);
-  return `<aside class="landing-selection-note" id="landing-selection-summary" data-testid="landing-selection-summary" aria-live="polite"><div class="selection-note-kicker">Live Selection</div><h3>${escapeHtml(selectedLabel)}</h3><p>${escapeHtml(explanation)}</p><dl><div><dt>Byte span</dt><dd>${spanLabel(selection)} · ${selection.length} bytes</dd></div><div><dt>Encoded</dt><dd class="mono">${escapeHtml(encoded)}</dd></div><div><dt>Value</dt><dd>${escapeHtml(value)}</dd></div></dl></aside>`;
+  const encoded = resolution.field?.encodedBytes.map(formatByte).join(' ') ?? selectionHex(activeOptions.sample.bytes, selected);
+  return `<aside class="landing-selection-note" id="landing-selection-summary" data-testid="landing-selection-summary" aria-live="polite"><h3>${escapeHtml(selectedLabel)}</h3><p>${escapeHtml(explanation)}</p><dl><div><dt>Byte span</dt><dd>${spanLabel(selected)} · ${selected.length} bytes</dd></div><div><dt>Encoded</dt><dd class="mono">${escapeHtml(encoded)}</dd></div><div><dt>Value</dt><dd>${escapeHtml(value)}</dd></div></dl></aside>`;
+}
+
+function localMark(narrow: boolean): string {
+  return `<span class="editorial-local-mark"><i aria-hidden="true"></i>${narrow ? 'Samples stay in this browser' : 'Files stay in this browser'}</span>`;
 }
 
 export function renderLanding(options: LandingViewOptions, nextSelection: ByteSpan = options.getSelection(), focusSelector?: string): void {
@@ -55,68 +75,64 @@ export function renderLanding(options: LandingViewOptions, nextSelection: ByteSp
   const narrow = options.isNarrow();
   selection = normalizeSelection(nextSelection, options.sample.bytes.length);
   options.setSelection(selection);
-  const ihdr = options.sample.structures.find((structure) => structure.type === 'IHDR') ?? options.sample.structures[1];
-  const widthField = ihdr?.fields.find((field) => field.name === 'width') ?? ihdr?.fields[0];
-  const ihdrSelection = ihdr?.span ?? selection;
-  const ihdrFieldLabel = widthField?.label ?? 'Width';
-  const ihdrFieldValue = widthField ? formatValue(widthField.value) : '—';
-  const ihdrEncoded = widthField?.encodedBytes.map(formatByte).join(' ') ?? '—';
+  const resolution = resolveSelection(options.sample, selection);
+  const selectedLabel = resolution.field?.label ?? resolution.structure?.label ?? 'PNG signature';
+  const selectedStructure = resolution.structure ?? options.sample.structures[0];
 
   options.mount.innerHTML = `
-    <main class="app-shell landing-shell">
+    <main class="app-shell landing-shell editorial-landing">
       <section class="sheet-frame landing-sheet" aria-labelledby="landing-title" data-drop-target="landing">
-        <div class="masthead">
+        <header class="editorial-nav">
           <a class="wordmark" href="${options.routeHref('/')}" aria-label="HexLens home">HexLens</a>
-          <span class="masthead-rule" aria-hidden="true"></span>
-          <span class="masthead-label"><span class="status-pulse" aria-hidden="true"></span>Local binary inspector</span>
+          <nav aria-label="Landing navigation"><a href="#how-it-works">How it works</a><a href="${options.routeHref('/inspect?sample=png')}">Inspector</a></nav>
           ${renderThemeToggle()}
-        </div>
+        </header>
 
-        <section class="landing-grid landing-beat landing-beat-promise" aria-labelledby="landing-title">
-          <div class="landing-copy">
-            <h1 id="landing-title"><span>Read the file.</span><span>See the structure.</span></h1>
-            <p class="lead-copy">${narrow ? 'HexLens ties each bundled Sample to the named Structures and bytes that form it.' : 'HexLens opens a binary file on your machine and ties its named Structures to the bytes that form them.'}</p>
-            <p class="support-copy">No uploads. No guesswork.<br />Just bytes, offsets, and meaning.</p>
-            <div class="landing-actions">
-              <a class="button button-primary" href="${options.routeHref('/inspect?sample=png')}" data-testid="try-sample">Try the sample <span aria-hidden="true">→</span></a>
+        <section class="editorial-hero" aria-labelledby="landing-title">
+          <div class="editorial-manifesto">
+            <div><h1 id="landing-title">Read the file.<br />See its structure.</h1><p>${narrow ? 'Explore the named Structures and bytes inside bundled PNG and WAV Samples.' : 'Inspect PNG and WAV files without sending a byte away from your browser.'}</p></div>
+            <div class="editorial-actions">
+              <a class="button button-primary" href="${options.routeHref('/inspect?sample=png')}" data-testid="try-sample">Try the sample ${arrowIcon('right')}</a>
               ${options.renderFileIngress(narrow)}
+              ${narrow ? '' : '<p class="drop-hint" data-testid="drop-hint">Or drop one PNG or WAV file anywhere on this page.</p>'}
+              ${options.renderNotice()}
+              ${localMark(narrow)}
+              ${options.operationPhase() !== 'ready' ? `<p class="landing-operation" role="status" aria-live="polite">${options.operationLabel()}</p>` : ''}
             </div>
-            ${narrow ? '<p class="sample-only-note">Phone view · open a bundled PNG or WAV Sample.</p>' : '<p class="drop-hint" data-testid="drop-hint">Or drop one PNG or WAV file onto this sheet.</p>'}
-            ${options.renderNotice()}
-            <p class="local-note"><span class="lock-mark" aria-hidden="true"><span></span></span><span><strong>100% local.</strong><br />${narrow ? 'Samples stay in your browser.' : 'Your files never leave your machine.'}</span></p>
-            ${options.operationPhase() !== 'ready' ? `<p class="landing-operation" role="status" aria-live="polite">${options.operationLabel()}</p>` : ''}
           </div>
 
-          <div class="sample-plate" aria-labelledby="sample-title" data-testid="landing-mini-inspector">
-            <div class="sample-plate-heading"><h2 id="sample-title">Sample: PNG <span>(first 24 bytes)</span></h2><span class="plate-line" aria-hidden="true"></span></div>
-            <div class="sample-offsets" aria-hidden="true"><span>Offset</span><span>00</span><span>04</span><span>08</span><span>0C</span><span>14</span><span>18</span></div>
-            ${renderByteStrip(options.sample, selection, true, 'landing-', 24)}
-            <div class="landing-structure-map">${renderStructureTree(options.sample, selection, true, 'landing-')}</div>
+          <div class="editorial-proof sample-plate" aria-labelledby="sample-title" data-testid="landing-mini-inspector">
+            <div class="editorial-proof-title"><span>One selection</span><h2 id="sample-title">${escapeHtml(selectedLabel)}</h2><span>${selection.length} bytes</span></div>
+            ${renderByteStrip(options.sample, selection, true, 'landing-', 48)}
+            <nav class="landing-structure-map" aria-label="PNG sample Structures">${renderStructureTree(options.sample, selection, true, 'landing-')}</nav>
             ${renderLandingSelectionNote(selection)}
+            <footer>${localMark(narrow)}<span>No upload. No account.</span></footer>
             <figure class="source-preview-mini"><figcaption>Source preview · original-file rendering</figcaption><img src="${options.sourceDataUrl('png')}" alt="A one-pixel PNG Sample rendered as a tiny transparent image" /></figure>
           </div>
         </section>
 
-        <section class="landing-beat landing-beat-mechanism" aria-labelledby="mechanism-heading" data-testid="landing-beat-mechanism">
-          <div class="beat-intro"><span class="beat-rule" aria-hidden="true"></span><h2 id="mechanism-heading">A span is the explanation.</h2><p>One Selection keeps the semantic label, the exact bytes, and the Field note together. Click a Structure or byte above to see the same relationship move.</p></div>
-          <div class="mechanism-ledger" aria-label="PNG Selection relationship">
-            <div class="ledger-line"><span>Structure</span><strong>${escapeHtml(ihdr?.label ?? 'IHDR')}</strong><code>${spanLabel(ihdrSelection)}</code><small>${ihdrSelection.length} bytes · image header</small></div>
-            <div class="ledger-line"><span>Field note</span><strong>${escapeHtml(ihdrFieldLabel)}</strong><code>${escapeHtml(ihdrEncoded)}</code><small>interpreted value · ${escapeHtml(ihdrFieldValue)}</small></div>
-            <div class="ledger-line"><span>Source preview</span><strong>Original PNG</strong><code>not parsed output</code><small>shown as a browser rendering for reference</small></div>
+        <section class="editorial-connection landing-beat landing-beat-mechanism" id="how-it-works" aria-labelledby="mechanism-heading" data-testid="landing-beat-mechanism">
+          <header><h2 id="mechanism-heading">A span is the explanation.</h2><p>Select a named Structure or a byte. HexLens keeps the decoded value, its explanation, and the exact source range in the same view.</p></header>
+          <div class="editorial-connection-rows" aria-label="How a Selection connects bytes and meaning">
+            <div><code>${escapeHtml(selectionHex(options.sample.bytes, selection))}</code><strong>Bytes</strong><p>The original values in source order.</p></div>
+            <div><code>${spanLabel(selection)}</code><strong>Structure</strong><p>${escapeHtml(selectedStructure?.label ?? 'Selected span')} owns this range.</p></div>
+            <div><code>${escapeHtml(selectedLabel)}</code><strong>Meaning</strong><p>${escapeHtml(resolution.field?.explanation ?? selectedStructure?.description ?? 'The parser has not assigned a semantic meaning to this span.')}</p></div>
           </div>
         </section>
 
-        <section class="landing-beat landing-beat-coverage" aria-labelledby="coverage-heading" data-testid="landing-beat-coverage">
-          <div class="beat-intro"><span class="beat-rule beat-rule-verdigris" aria-hidden="true"></span><h2 id="coverage-heading">Two Formats. One honest contract.</h2><p>HexLens ships a bounded, read-only path for the two Formats it can explain today. Payload bytes stay visible without being decoded.</p></div>
-          <dl class="coverage-ledger">
-            <div class="coverage-entry"><dt><strong>PNG</strong><span>image structure</span></dt><dd><span>Signature · IHDR · PLTE · IDAT · IEND</span><span>tEXt · iTXt · gAMA · sRGB · tRNS · pHYs</span><small>Compressed image Payload remains opaque.</small></dd></div>
-            <div class="coverage-entry"><dt><strong>WAV</strong><span>RIFF/WAVE structure</span></dt><dd><span>RIFF/WAVE · fmt · data · optional fact</span><span>LIST/INFO · INAM · IART · ICMT · ICRD · IGNR</span><small>PCM and IEEE-float Fields are little-endian; audio sample Payload remains opaque.</small></dd></div>
-          </dl>
+        <section class="editorial-coverage landing-beat landing-beat-coverage" aria-labelledby="coverage-heading" data-testid="landing-beat-coverage">
+          <header><h2 id="coverage-heading">Two Formats. One honest contract.</h2><p>HexLens explains the parts it understands and keeps compressed payloads visible without pretending to decode them.</p></header>
+          <dl><div><dt><strong>PNG</strong><span>image structure</span></dt><dd><span>Signature · IHDR · PLTE · IDAT · IEND</span><small>Compressed image Payload remains opaque.</small></dd></div><div><dt><strong>WAV</strong><span>audio structure</span></dt><dd><span>RIFF/WAVE · fmt · data · LIST/INFO</span><small>Audio sample Payload remains opaque.</small></dd></div></dl>
         </section>
 
-        <section class="landing-beat landing-beat-local" aria-labelledby="local-heading" data-testid="landing-beat-local">
-          <div class="local-close"><span class="lock-mark" aria-hidden="true"><span></span></span><div><h2 id="local-heading">Your file stays with you.</h2><p>Choose one local PNG or WAV on desktop. Bytes, filenames, metadata, offsets, and Diagnostics stay in memory on this device; they do not enter URLs, storage, logs, telemetry, or outgoing requests.</p><p class="local-close-note">No upload. Just a short path from Sample to Inspection.</p></div></div>
-          <a class="button button-primary landing-final-action" href="${options.routeHref('/inspect?sample=png')}" data-testid="try-sample-final">Try the sample <span aria-hidden="true">→</span></a>
+        <section class="editorial-teach landing-beat" aria-labelledby="teach-heading">
+          <div><h2 id="teach-heading">Learn the format while you inspect it.</h2><p>The Info tab explains why each Structure exists and how to read its bytes. The lesson follows your current Selection.</p><a class="button button-primary" href="${options.routeHref('/inspect?sample=png&panel=info')}">Open the educational view ${arrowIcon('right')}</a></div>
+          <aside><strong>The file's ID card</strong><p>Every PNG starts with a fixed eight-byte signature. Software can identify the format before decoding pixels.</p></aside>
+        </section>
+
+        <section class="editorial-close landing-beat landing-beat-local" aria-labelledby="local-heading" data-testid="landing-beat-local">
+          <div><h2 id="local-heading">Your file stays with you.</h2><p>HexLens keeps file bytes, names, metadata, offsets, and Diagnostics in memory on this device. They do not enter URLs, storage, logs, telemetry, or outgoing requests.</p></div>
+          <div>${localMark(narrow)}<a class="button button-primary landing-final-action" href="${options.routeHref('/inspect?sample=png')}" data-testid="try-sample-final">Inspect the sample ${arrowIcon('right')}</a></div>
         </section>
 
         <footer class="sheet-footer"><span><strong>HexLens</strong> · local by design</span><span>PNG and WAV</span><span>No uploads. No telemetry.</span></footer>

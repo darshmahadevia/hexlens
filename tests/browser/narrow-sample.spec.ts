@@ -35,7 +35,7 @@ test('the narrow PNG Sample uses tabs and preserves its Selection and Source pre
 
   await page.getByRole('link', { name: /Back to landing/ }).click();
   await expect(page).toHaveURL(/\/$/);
-  await expect(page.getByRole('heading', { name: 'Read the file. See the structure.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Read the file. See its structure.' })).toBeVisible();
 });
 
 test('the narrow WAV Sample keeps the same tab and Selection contract', async ({ page }) => {

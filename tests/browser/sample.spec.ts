@@ -7,7 +7,7 @@ test('a visitor can enter the PNG Sample Inspection and synchronize Structure, b
   });
 
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Read the file. See the structure.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Read the file. See its structure.' })).toBeVisible();
   await expect(page.getByTestId('try-sample')).toBeVisible();
   await page.getByTestId('try-sample').click();
 

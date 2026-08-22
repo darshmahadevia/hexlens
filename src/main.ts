@@ -28,6 +28,8 @@ import { createRouter, type View } from './routing.ts';
 import { VirtualByteGrid, type GridFocusTarget } from './byte-grid-view.ts';
 import { activateNarrowTab, renderNarrowTabs, type NarrowTab } from './narrow-navigation.ts';
 import { renderLanding } from './landing-view.ts';
+import { lessonFor } from './inspection-lesson.ts';
+import { arrowIcon } from './icons.ts';
 import { sampleInspection, PNG_SAMPLE_BASE64, wavSampleInspection, WAV_SAMPLE_BASE64 } from './sample.ts';
 import { initializeTheme, renderThemeToggle, toggleTheme } from './theme.ts';
 
@@ -47,6 +49,7 @@ const SELECTION_ANNOUNCEMENT_DELAY = 180;
 
 type SessionKind = 'sample' | 'local';
 type NoticeKind = 'info' | 'success' | 'error';
+type InspectorPanel = 'map' | 'info';
 
 interface Notice {
   kind: NoticeKind;
@@ -67,6 +70,7 @@ interface InspectionSession {
   previewFailed?: boolean;
   selection?: ByteSpan;
   narrowTab?: NarrowTab;
+  inspectorPanel?: InspectorPanel;
 }
 
 const router = createRouter(import.meta.env.BASE_URL);
@@ -155,13 +159,13 @@ function renderEmptyInspector(): void {
     <main class="app-shell inspector-shell">
       <section class="sheet-frame inspector-sheet empty-inspector" aria-labelledby="inspector-title" data-drop-target="inspector">
         <header class="inspector-toolbar" aria-label="Inspection toolbar">
-          <a href="${router.href('/')}" class="back-link">← Back to landing</a>
+          <a href="${router.href('/')}" class="back-link">${arrowIcon('left')}Back to landing</a>
           <div class="toolbar-title"><span class="wordmark wordmark-small">HexLens</span><span class="toolbar-divider" aria-hidden="true"></span><h1 id="inspector-title">Open an Inspection</h1></div>
           <div class="file-identity"><strong>No file selected</strong><span>${narrow ? 'Bundled PNG or WAV Sample' : 'Local PNG or WAV'}</span></div>
           ${renderThemeToggle()}
         </header>
         ${renderStatus()}
-        <div class="empty-inspector-content"><span class="plate-mark">${narrow ? 'Sample Inspection' : 'One file, one Inspection'}</span><h2>${narrow ? 'Choose a Sample to begin.' : 'Bring a PNG or WAV into focus.'}</h2><p>${narrow ? 'Phone view is reserved for the bundled PNG and WAV Samples. Choose one to explore its Structures, bytes, and Fields.' : 'Choose one local PNG or WAV, or drop it here. HexLens checks the bytes on this device and keeps the current file in memory only.'}</p>${narrow ? `<div class="sample-links" aria-label="Sample files"><a class="button button-primary" href="${router.href('/inspect?sample=png')}">Open PNG Sample</a><a class="button button-secondary" href="${router.href('/inspect?sample=wav')}">Open WAV Sample</a></div>` : `${renderFileIngress()}<p class="drop-hint">Drop one PNG or WAV file · directories and multiple files are not accepted.</p>`}${renderNotice()}</div>
+        <div class="empty-inspector-content"><h2>${narrow ? 'Choose a Sample to begin.' : 'Bring a PNG or WAV into focus.'}</h2><p>${narrow ? 'Phone view is reserved for the bundled PNG and WAV Samples. Choose one to explore its Structures, bytes, and Fields.' : 'Choose one local PNG or WAV, or drop it here. HexLens checks the bytes on this device and keeps the current file in memory only.'}</p>${narrow ? `<div class="sample-links" aria-label="Sample files"><a class="button button-primary" href="${router.href('/inspect?sample=png')}">Open PNG Sample</a><a class="button button-secondary" href="${router.href('/inspect?sample=wav')}">Open WAV Sample</a></div>` : `${renderFileIngress()}<p class="drop-hint">Drop one PNG or WAV file · directories and multiple files are not accepted.</p>`}${renderNotice()}</div>
       </section>
     </main>
   `;
@@ -433,6 +437,30 @@ function renderDiagnostics(inspection: Inspection): string {
 
 // The byte-grid implementation lives behind the VirtualByteGrid module seam.
 
+function renderInspectorViewTabs(activePanel: InspectorPanel): string {
+  return `<nav class="inspector-view-tabs" role="tablist" aria-label="Inspector view"><button type="button" role="tab" data-inspector-panel="map" aria-selected="${activePanel === 'map'}" class="${activePanel === 'map' ? 'is-active' : ''}">Byte map</button><button type="button" role="tab" data-inspector-panel="info" aria-selected="${activePanel === 'info'}" class="${activePanel === 'info' ? 'is-active' : ''}">Info</button></nav>`;
+}
+
+function syncInspectorPanelUrl(panel: InspectorPanel): void {
+  const params = new URLSearchParams(window.location.search);
+  if (panel === 'info') params.set('panel', 'info');
+  else params.delete('panel');
+  const query = params.toString();
+  window.history.replaceState(null, '', `${window.location.pathname}${query ? `?${query}` : ''}`);
+}
+
+function renderInspectionLesson(inspection: Inspection, resolution: SelectionResolution): string {
+  const lesson = lessonFor(inspection, resolution);
+  const visibleLength = Math.min(resolution.selection.length, 32);
+  const visibleBytes = Array.from(inspection.bytes.slice(resolution.selection.offset, resolution.selection.offset + visibleLength), formatByte).join(' ');
+  const remainder = resolution.selection.length > visibleLength ? ` + ${resolution.selection.length - visibleLength} more` : '';
+  return `<article class="inspector-info-panel" data-testid="inspection-info" aria-labelledby="inspection-info-heading">
+    <header><h2 id="inspection-info-heading">${escapeHtml(lesson.title)}</h2><p>${escapeHtml(lesson.meaning)}</p></header>
+    <div class="info-lesson-grid"><section><h3>How to read it</h3><p>${escapeHtml(lesson.reading)}</p></section><section><h3>Where it sits</h3><p>${escapeHtml(lesson.position)}</p></section></div>
+    <div class="info-source-bytes" aria-label="Selected source bytes"><code>${escapeHtml(visibleBytes)}${escapeHtml(remainder)}</code></div>
+  </article>`;
+}
+
 function renderNarrowSelectionSummary(
   inspection: Inspection,
   selection: ByteSpan,
@@ -472,6 +500,7 @@ function renderNarrowInspectorLayout(
         ${renderFieldInspector(inspection, resolution)}
         <figure class="source-preview" data-testid="source-preview"><figcaption id="narrow-field-heading">Source preview <span>· original-file rendering</span></figcaption>${renderPreview(inspection, displayFormat, previewUrl, previewFailed)}</figure>
       </aside>
+      <section class="narrow-panel narrow-info-panel${activeTab === 'info' ? ' is-active' : ''}" id="narrow-panel-info" data-testid="narrow-panel-info" data-narrow-panel="info" role="tabpanel" aria-labelledby="narrow-tab-info"${hidden('info')}>${renderInspectionLesson(inspection, resolution)}</section>
     </div>`;
 }
 
@@ -500,11 +529,12 @@ function renderInspector(target: InspectionSession, requestedSelection?: ByteSpa
   const preview = renderPreview(inspection, displayFormat, target.previewUrl, target.previewFailed);
   const narrow = isNarrowViewport();
   const activeNarrowTab = target.narrowTab ?? 'structures';
+  const inspectorPanel = target.inspectorPanel ?? 'map';
   mount.innerHTML = `
     <main class="app-shell inspector-shell">
       <section class="sheet-frame inspector-sheet" aria-labelledby="inspector-title" data-drop-target="inspector">
         <header class="inspector-toolbar">
-          <a href="${router.href('/')}" class="back-link">← Back to landing</a>
+          <a href="${router.href('/')}" class="back-link">${arrowIcon('left')}Back to landing</a>
           <div class="toolbar-title"><span class="wordmark wordmark-small">HexLens</span><span class="toolbar-divider" aria-hidden="true"></span><h1 id="inspector-title">${target.kind === 'local' ? 'Local Inspection' : 'Sample Inspection'}</h1></div>
           <div class="file-identity"><strong title="${escapeHtml(sourceName)}" aria-label="${target.kind === 'local' ? `Local filename: ${escapeHtml(sourceName)}` : escapeHtml(sourceName)}">${escapeHtml(sourceName)}</strong><span>${inspection.bytes.length.toLocaleString('en-US')} bytes · ${displayFormat}${target.kind === 'local' ? ' · local' : ''}</span></div>
           ${renderThemeToggle()}
@@ -514,8 +544,9 @@ function renderInspector(target: InspectionSession, requestedSelection?: ByteSpa
         ${renderNotice()}
         ${renderRecoveryActions(inspection)}
         ${renderDiagnostics(inspection)}
+        ${narrow ? '' : renderInspectorViewTabs(inspectorPanel)}
 
-        ${narrow ? renderNarrowSelectionSummary(inspection, selection, selectedSummary, focusSemanticAction) + renderNarrowInspectorLayout(inspection, selection, resolution, activeNarrowTab, target.previewUrl, target.previewFailed) : `<div class="inspector-layout">
+        ${narrow ? renderNarrowSelectionSummary(inspection, selection, selectedSummary, focusSemanticAction) + renderNarrowInspectorLayout(inspection, selection, resolution, activeNarrowTab, target.previewUrl, target.previewFailed) : `<div class="inspector-layout${inspectorPanel === 'info' ? ' is-info' : ''}">
           <aside class="structure-panel" aria-labelledby="structure-heading"><div class="panel-heading"><span id="structure-heading">Structures</span><span class="panel-rule" aria-hidden="true"></span></div><p class="panel-intro">Named parts in source-file order. Use Enter to select; use the arrow keys to move between Structures.</p><nav class="structure-list" aria-label="${displayFormat} Structures" data-semantic-list="structures">${renderStructureTree(inspection, selection, true)}</nav><div class="structure-legend"><span class="legend-mark legend-structure" aria-hidden="true"></span><span>Structure boundary</span><span class="legend-mark legend-selection" aria-hidden="true"></span><span>Selected Byte span</span><span class="legend-mark legend-unmapped" aria-hidden="true"></span><span>Unmapped span</span></div></aside>
 
           <section class="byte-panel" aria-labelledby="bytes-heading"><div class="panel-heading"><span id="bytes-heading">Bytes</span><span class="panel-rule" aria-hidden="true"></span><span class="panel-meta">16 bytes / row · virtualized</span></div><p class="panel-intro" id="byte-grid-help">Select a byte to focus its smallest matching Field. Shift-select or use arrow keys to extend the exact Selection. Raw-byte tab enumeration is optional.</p>
@@ -526,6 +557,7 @@ function renderInspector(target: InspectionSession, requestedSelection?: ByteSpa
           </section>
 
           <aside class="field-panel" aria-labelledby="field-heading">${renderFieldInspector(inspection, resolution)}<figure class="source-preview" data-testid="source-preview"><figcaption id="field-heading">Source preview <span>· original-file rendering</span></figcaption>${preview}</figure></aside>
+          ${renderInspectionLesson(inspection, resolution)}
         </div>`}
         <footer class="sheet-footer inspector-footer"><span>Inspection: <strong>${target.kind === 'local' ? `Local ${displayFormat}` : `${displayFormat} Sample`}</strong></span><span>Source preview is not parsed output.</span><span class="footer-local">Local only · no telemetry</span></footer>
       </section>
@@ -543,12 +575,26 @@ function renderInspector(target: InspectionSession, requestedSelection?: ByteSpa
     onSelect: (nextSelection, nextFocus, scrollTop, anchor) => renderInspector(target, nextSelection, nextFocus, scrollTop, anchor),
   });
 
+  mount.querySelectorAll<HTMLButtonElement>('[data-inspector-panel]').forEach((tab) => {
+    tab.addEventListener('click', () => {
+      const nextPanel = tab.dataset.inspectorPanel as InspectorPanel | undefined;
+      if (!nextPanel || nextPanel === target.inspectorPanel) return;
+      target.inspectorPanel = nextPanel;
+      syncInspectorPanelUrl(nextPanel);
+      renderInspector(target, selection);
+    });
+  });
+
   if (narrow) {
     const tabElements = Array.from(mount.querySelectorAll<HTMLButtonElement>('[data-narrow-tab]'));
     tabElements.forEach((tab, index) => {
       tab.addEventListener('click', () => {
         const nextTab = tab.dataset.narrowTab as NarrowTab | undefined;
-        if (nextTab) activateNarrowTab(mount, target, nextTab);
+        if (nextTab) {
+          target.inspectorPanel = nextTab === 'info' ? 'info' : 'map';
+          syncInspectorPanelUrl(target.inspectorPanel);
+          activateNarrowTab(mount, target, nextTab);
+        }
       });
       tab.addEventListener('keydown', (event) => {
         if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
@@ -560,7 +606,11 @@ function renderInspector(target: InspectionSession, requestedSelection?: ByteSpa
             : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabElements.length) % tabElements.length;
         const nextTab = tabElements[nextIndex];
         const nextTabId = nextTab?.dataset.narrowTab as NarrowTab | undefined;
-        if (nextTabId) activateNarrowTab(mount, target, nextTabId);
+        if (nextTabId) {
+          target.inspectorPanel = nextTabId === 'info' ? 'info' : 'map';
+          syncInspectorPanelUrl(target.inspectorPanel);
+          activateNarrowTab(mount, target, nextTabId);
+        }
       });
     });
   }
@@ -760,6 +810,10 @@ function renderRoute(): void {
     fileFlow.cancel();
     revokePreview(session);
     session = sampleSession(params.get('sample') === 'wav' ? wavSample : sample);
+    if (params.get('panel') === 'info') {
+      session.inspectorPanel = 'info';
+      session.narrowTab = 'info';
+    }
     operation = { phase: 'ready', origin: 'inspect' };
   }
   render();

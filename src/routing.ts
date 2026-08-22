@@ -1,4 +1,4 @@
-export type Route = '/' | '/inspect' | `/inspect?sample=${'png' | 'wav'}`;
+export type Route = '/' | '/inspect' | `/inspect?sample=${'png' | 'wav'}` | `/inspect?sample=${'png' | 'wav'}&panel=info`;
 export type View = 'landing' | 'inspect';
 
 export function createRouter(baseUrl: string): {

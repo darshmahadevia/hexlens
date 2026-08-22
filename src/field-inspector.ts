@@ -50,7 +50,6 @@ export function renderSemanticDetail(inspection: Inspection, resolution: Selecti
     : '';
   const byteTargetLabel = resolution.field ? 'Field bytes' : resolution.structure ? 'Structure bytes' : 'Selected bytes';
   return `<div class="field-detail" data-testid="field-detail">
-      <div class="detail-kicker">Selected ${resolution.field ? 'Field' : 'Structure'}</div>
       <h3>${escapeHtml(selectedLabel)}</h3>
       ${resolution.field ? `<p class="detail-explanation">${escapeHtml(resolution.field.explanation)}</p>` : `<p class="detail-explanation">${escapeHtml(structure?.description ?? 'This Byte span is not claimed by a parsed Structure.')}</p>`}
       <button class="inline-focus" type="button" data-focus-bytes aria-label="Focus ${escapeHtml(byteTargetLabel)} in the byte grid">Focus ${escapeHtml(byteTargetLabel)}</button>

@@ -1,8 +1,8 @@
-export type NarrowTab = 'structures' | 'bytes' | 'fields';
+export type NarrowTab = 'structures' | 'bytes' | 'fields' | 'info';
 
 export function renderNarrowTabs(activeTab: NarrowTab): string {
   const tabs: Array<{ id: NarrowTab; label: string }> = [
-    { id: 'structures', label: 'Structures' }, { id: 'bytes', label: 'Bytes' }, { id: 'fields', label: 'Fields' },
+    { id: 'structures', label: 'Structures' }, { id: 'bytes', label: 'Bytes' }, { id: 'fields', label: 'Fields' }, { id: 'info', label: 'Info' },
   ];
   return `<div class="narrow-inspector-tabs" role="tablist" aria-label="Sample views" data-testid="narrow-tabs">${tabs.map((tab) => `<button class="narrow-inspector-tab${tab.id === activeTab ? ' is-active' : ''}" type="button" role="tab" id="narrow-tab-${tab.id}" data-testid="narrow-tab-${tab.id}" data-narrow-tab="${tab.id}" aria-controls="narrow-panel-${tab.id}" aria-selected="${tab.id === activeTab}" tabindex="${tab.id === activeTab ? '0' : '-1'}">${tab.label}</button>`).join('')}</div>`;
 }
