@@ -17,8 +17,11 @@ import {
   WAVE_FORMAT_EXTENSIBLE,
   WAVE_FORMAT_IEEE_FLOAT,
   WAVE_FORMAT_PCM,
+  WAV_DIAGNOSTIC_CODES,
+  WAV_DIAGNOSTIC_SPAN_POLICY,
+  WAV_LIMITS,
 } from './domain/wav.ts';
-import type { FormatId } from './domain/inspection.ts';
+import { createRawInspection, type FormatId, type Inspection } from './domain/inspection.ts';
 
 export {
   hasPngSignature,
@@ -40,9 +43,13 @@ export {
   WAVE_FORMAT_EXTENSIBLE,
   WAVE_FORMAT_IEEE_FLOAT,
   WAVE_FORMAT_PCM,
+  WAV_DIAGNOSTIC_CODES,
+  WAV_DIAGNOSTIC_SPAN_POLICY,
+  WAV_LIMITS,
 } from './domain/wav.ts';
 export type { WavInspectionMetadata } from './domain/wav.ts';
-export type { BitField, ByteSpan, DerivedValue, Diagnostic, Field, FieldValueStatus, Inspection, Payload, Structure, UnmappedSpan } from './domain/inspection.ts';
+export { createRawInspection, GENERIC_DIAGNOSTIC_CODES, GENERIC_DIAGNOSTIC_SPAN_POLICY, INSPECTION_LIMITS } from './domain/inspection.ts';
+export type { BitField, ByteSpan, DerivedValue, Diagnostic, Field, FieldValueStatus, Inspection, InspectionStatus, InspectionTermination, Payload, Structure, UnmappedSpan } from './domain/inspection.ts';
 export type { FormatId } from './domain/inspection.ts';
 export {
   ASCII_REPLACEMENT,
@@ -87,9 +94,12 @@ export function detectFormat(bytes: Uint8Array): DetectedFormat {
   return undefined;
 }
 
-export function inspectDetected(bytes: Uint8Array, sourceName: string, metadata: { mimeType?: string } = {}) {
+export function inspectDetected(bytes: Uint8Array, sourceName: string, metadata: { mimeType?: string; signal?: AbortSignal } = {}): Inspection {
   const detected = detectFormat(bytes);
   if (detected === 'png') return inspectPng(bytes, sourceName, metadata);
   if (detected === 'wav') return inspectWav(bytes, sourceName, metadata);
-  return undefined;
+  if (detected === 'unsupported_riff') {
+    return createRawInspection(bytes, sourceName, 'unsupported', 'This RIFF family is outside the supported RIFF/WAVE Format boundary. The raw bytes remain available.');
+  }
+  return createRawInspection(bytes, sourceName, 'unsupported');
 }

@@ -1,4 +1,13 @@
-import type { ByteSpan, Diagnostic, Field, Inspection, Structure, UnmappedSpan } from './inspection.ts';
+import {
+  GENERIC_DIAGNOSTIC_CODES,
+  INSPECTION_LIMITS,
+  type ByteSpan,
+  type Diagnostic,
+  type Field,
+  type Inspection,
+  type Structure,
+  type UnmappedSpan,
+} from './inspection.ts';
 
 export const RIFF_SIGNATURE = new Uint8Array([0x52, 0x49, 0x46, 0x46]);
 export const WAVE_FORM = new Uint8Array([0x57, 0x41, 0x56, 0x45]);
@@ -10,8 +19,47 @@ export const WAVE_FORMAT_PCM = 0x0001;
 export const WAVE_FORMAT_IEEE_FLOAT = 0x0003;
 export const WAVE_FORMAT_EXTENSIBLE = 0xfffe;
 
+/** The same provisional bounds apply to PNG and WAV inspections. */
+export const WAV_LIMITS = Object.freeze({
+  maxBytes: INSPECTION_LIMITS.maxBytes,
+  maxStructures: INSPECTION_LIMITS.maxStructures,
+  maxDiagnostics: INSPECTION_LIMITS.maxDiagnostics,
+});
+
+/** Stable WAV Diagnostic identities and their public span policy. */
+export const WAV_DIAGNOSTIC_CODES = Object.freeze({
+  unsupportedFormat: GENERIC_DIAGNOSTIC_CODES.unsupportedFormat,
+  limitReached: GENERIC_DIAGNOSTIC_CODES.limitReached,
+  parseAborted: GENERIC_DIAGNOSTIC_CODES.parseAborted,
+  extensionMismatch: GENERIC_DIAGNOSTIC_CODES.extensionMismatch,
+  truncatedRiff: 'truncated_riff',
+  truncatedChunk: 'truncated_chunk',
+  invalidLength: 'invalid_length',
+  invalidAlignment: 'invalid_alignment',
+  missingFmt: 'missing_fmt',
+  missingData: 'missing_data',
+  unsupportedFormatTag: 'unsupported_format_tag',
+  invalidConsistency: 'invalid_consistency',
+} as const);
+
+export const WAV_DIAGNOSTIC_SPAN_POLICY: Readonly<Record<string, string>> = Object.freeze({
+  unsupported_format: 'The available RIFF/root signature prefix.',
+  limit_reached: 'The first offset that could not be safely inspected.',
+  parse_aborted: 'The first offset not inspected when cancellation was observed.',
+  extension_mismatch: 'The RIFF/WAVE root identifier.',
+  truncated_riff: 'The four-byte declared RIFF size field.',
+  truncated_chunk: 'All available bytes from the unsafe chunk offset.',
+  invalid_length: 'The declared length field or offending chunk envelope.',
+  invalid_alignment: 'The expected one-byte padding position.',
+  missing_fmt: 'The remaining RIFF body where fmt was expected.',
+  missing_data: 'The remaining RIFF body where data was expected.',
+  unsupported_format_tag: 'The two-byte format tag Field.',
+  invalid_consistency: 'The Field whose declared relationship is inconsistent.',
+});
+
 export interface WavInspectionMetadata {
   mimeType?: string;
+  signal?: AbortSignal;
 }
 
 const INFO_LABELS: Record<string, { name: string; label: string }> = {
@@ -60,11 +108,18 @@ function canRead(bytes: Uint8Array, offset: number, length: number): boolean {
 }
 
 function ascii(bytes: Uint8Array, offset: number, length: number): string {
-  return String.fromCharCode(...bytesOf(bytes, boundedSpan(bytes, offset, length)));
+  const values = bytesOf(bytes, boundedSpan(bytes, offset, length));
+  let result = '';
+  for (let index = 0; index < values.length; index += 4096) {
+    result += String.fromCharCode(...values.slice(index, index + 4096));
+  }
+  return result;
 }
 
 function text(bytes: Uint8Array, offset: number, length: number): string {
-  return ascii(bytes, offset, length).replace(/\0+$/, '');
+  const max = 8_192;
+  const value = ascii(bytes, offset, Math.min(length, max)).replace(/\0+$/, '');
+  return length > max ? `${value}…` : value;
 }
 
 function u16(bytes: Uint8Array, offset: number): number {
@@ -101,6 +156,35 @@ function field(
 
 function diagnostic(code: string, severity: Diagnostic['severity'], message: string, span: ByteSpan): Diagnostic {
   return { code, severity, message, span };
+}
+
+interface DiagnosticCollector {
+  readonly items: Diagnostic[];
+  capped: boolean;
+  add(item: Diagnostic): void;
+}
+
+function createDiagnosticCollector(): DiagnosticCollector {
+  const items: Diagnostic[] = [];
+  return {
+    items,
+    capped: false,
+    add(item): void {
+      if (items.length >= WAV_LIMITS.maxDiagnostics) return;
+      if (items.length === WAV_LIMITS.maxDiagnostics - 1 && item.code !== WAV_DIAGNOSTIC_CODES.limitReached) {
+        items.push(diagnostic(
+          WAV_DIAGNOSTIC_CODES.limitReached,
+          'error',
+          'The Diagnostic safety limit was reached; parsing stopped before more findings could be recorded.',
+          item.span,
+        ));
+        this.capped = true;
+        return;
+      }
+      items.push(item);
+      if (item.code === WAV_DIAGNOSTIC_CODES.limitReached) this.capped = true;
+    },
+  };
 }
 
 function addUnmapped(unmapped: UnmappedSpan[], bytes: Uint8Array, span: ByteSpan, reason: string): void {
@@ -265,10 +349,10 @@ function infoStructure(bytes: Uint8Array, offset: number, declaredLength: number
   const metadata = INFO_LABELS[type];
   const fields = commonChunkFields(bytes, offset, declaredLength, type, boundary);
   const availableTextLength = Math.max(0, Math.min(declaredLength, boundary - (offset + 8), bytes.length - (offset + 8)));
-  if (metadata && availableTextLength > 0) {
+  if (metadata && availableTextLength > 0 && availableTextLength <= 8_192) {
     fields.push(field(bytes, `wav-${type.toLowerCase()}-value-${offset}`, metadata.name, metadata.label, { offset: offset + 8, length: availableTextLength }, text(bytes, offset + 8, availableTextLength), 'INFO text', `The ${type} identifier's text value from the bounded LIST/INFO subset.`, 'n/a'));
   }
-  const payload = !metadata && availableTextLength > 0
+  const payload = (metadata && availableTextLength > 8_192) || (!metadata && availableTextLength > 0)
     ? payloadField(bytes, `wav-${chunkId(type)}-payload-${offset}`, offset + 8, availableTextLength, 'opaque bytes', 'This INFO identifier is outside the declared metadata subset and remains opaque.', boundary)
     : undefined;
   if (payload) fields.push(payload);
@@ -316,7 +400,7 @@ function parseInfoChildren(
   listLength: number,
   boundary: number,
   structures: Structure[],
-  diagnostics: Diagnostic[],
+  diagnostics: DiagnosticCollector,
   unmapped: UnmappedSpan[],
   occurrences: Map<string, number>,
 ): void {
@@ -325,9 +409,11 @@ function parseInfoChildren(
   if (listLength < 4 || !canRead(bytes, payloadStart, 4)) return;
   let offset = payloadStart + 4;
   while (offset < listEnd) {
+    if (structures.length >= WAV_LIMITS.maxStructures || diagnostics.capped) return;
+    const previousOffset = offset;
     const remaining = listEnd - offset;
     if (remaining < 8) {
-      diagnostics.push(diagnostic('truncated_chunk', 'error', 'A LIST/INFO metadata chunk header is incomplete at the end of the list.', { offset, length: remaining }));
+      diagnostics.add(diagnostic(WAV_DIAGNOSTIC_CODES.truncatedChunk, 'error', 'A LIST/INFO metadata chunk header is incomplete at the end of the list.', { offset, length: remaining }));
       addUnmapped(unmapped, bytes, { offset, length: remaining }, 'Bytes left after an incomplete LIST/INFO chunk header.');
       return;
     }
@@ -339,7 +425,7 @@ function parseInfoChildren(
       const occurrence = (occurrences.get(type) ?? 0) + 1;
       occurrences.set(type, occurrence);
       structures.push(INFO_LABELS[type] ? infoStructure(bytes, offset, declaredLength, type, occurrence, listEnd) : genericChunk(bytes, offset, declaredLength, type, occurrence, listEnd));
-      diagnostics.push(diagnostic('truncated_chunk', 'error', `The ${type || 'LIST/INFO'} metadata chunk declares bytes beyond the list boundary.`, { offset, length: available }));
+      diagnostics.add(diagnostic(WAV_DIAGNOSTIC_CODES.truncatedChunk, 'error', `The ${type || 'LIST/INFO'} metadata chunk declares bytes beyond the list boundary.`, { offset, length: available }));
       return;
     }
     const occurrence = (occurrences.get(type) ?? 0) + 1;
@@ -348,11 +434,15 @@ function parseInfoChildren(
     offset = payloadEnd;
     if (declaredLength % 2 === 1) {
       if (offset >= listEnd || offset >= bytes.length) {
-        diagnostics.push(diagnostic('invalid_alignment', 'error', 'An odd-sized LIST/INFO chunk is missing its required padding byte.', { offset, length: 0 }));
+        diagnostics.add(diagnostic(WAV_DIAGNOSTIC_CODES.invalidAlignment, 'error', 'An odd-sized LIST/INFO chunk is missing its required padding byte.', { offset, length: 0 }));
         return;
       }
       addUnmapped(unmapped, bytes, { offset, length: 1 }, 'Required RIFF padding byte after an odd-sized LIST/INFO chunk.');
       offset += 1;
+    }
+    if (!Number.isSafeInteger(offset) || offset <= previousOffset) {
+      diagnostics.add(diagnostic(WAV_DIAGNOSTIC_CODES.invalidLength, 'error', 'LIST/INFO parsing did not advance safely; recovery stopped.', { offset: previousOffset, length: Math.max(0, listEnd - previousOffset) }));
+      return;
     }
   }
 }
@@ -364,16 +454,16 @@ function unsupportedRootMessage(bytes: Uint8Array): string {
   return 'The file does not begin with the RIFF/WAVE signature.';
 }
 
-function addFmtDiagnostics(structure: Structure, diagnostics: Diagnostic[]): number | undefined {
+function addFmtDiagnostics(structure: Structure, diagnostics: DiagnosticCollector): number | undefined {
   const audioFormat = structure.fields.find((item) => item.name === 'audioFormat');
   if (!audioFormat || structure.span.length < 24) {
-    diagnostics.push(diagnostic('invalid_length', 'error', 'The fmt chunk must contain the 16-byte PCM or IEEE-float format body.', structure.span));
+    diagnostics.add(diagnostic(WAV_DIAGNOSTIC_CODES.invalidLength, 'error', 'The fmt chunk must contain the 16-byte PCM or IEEE-float format body.', structure.span));
     return undefined;
   }
   const formatTag = typeof audioFormat.value === 'number' ? audioFormat.value : undefined;
   if (formatTag !== WAVE_FORMAT_PCM && formatTag !== WAVE_FORMAT_IEEE_FLOAT) {
     const detail = formatTag === WAVE_FORMAT_EXTENSIBLE ? 'WAVE_FORMAT_EXTENSIBLE' : `format tag ${formatTag ?? 'unknown'}`;
-    diagnostics.push(diagnostic('unsupported_format_tag', 'error', `${detail} is outside the bounded WAV contract; PCM (1) and IEEE float (3) are supported.`, audioFormat.span));
+    diagnostics.add(diagnostic(WAV_DIAGNOSTIC_CODES.unsupportedFormatTag, 'error', `${detail} is outside the bounded WAV contract; PCM (1) and IEEE float (3) are supported.`, audioFormat.span));
     return formatTag;
   }
 
@@ -393,21 +483,21 @@ function addFmtDiagnostics(structure: Structure, diagnostics: Diagnostic[]): num
     ? channelCount * Math.ceil(bits / 8)
     : undefined;
   if (channelCount !== undefined && channelCount < 1) {
-    diagnostics.push(diagnostic('invalid_consistency', 'error', 'The fmt chunk must declare at least one channel.', channels?.span ?? structure.span));
+    diagnostics.add(diagnostic(WAV_DIAGNOSTIC_CODES.invalidConsistency, 'error', 'The fmt chunk must declare at least one channel.', channels?.span ?? structure.span));
   }
   if (rate !== undefined && rate < 1) {
-    diagnostics.push(diagnostic('invalid_consistency', 'error', 'The fmt chunk must declare a positive sample rate.', sampleRate?.span ?? structure.span));
+    diagnostics.add(diagnostic(WAV_DIAGNOSTIC_CODES.invalidConsistency, 'error', 'The fmt chunk must declare a positive sample rate.', sampleRate?.span ?? structure.span));
   }
   if (bits !== undefined && (bits < 1 || bits % 8 !== 0)) {
-    diagnostics.push(diagnostic('invalid_consistency', 'error', 'Bits per sample must be a positive whole number of bytes for PCM or IEEE float.', bitsPerSample?.span ?? structure.span));
+    diagnostics.add(diagnostic(WAV_DIAGNOSTIC_CODES.invalidConsistency, 'error', 'Bits per sample must be a positive whole number of bytes for PCM or IEEE float.', bitsPerSample?.span ?? structure.span));
   }
   if (expectedBlockAlign !== undefined && actualBlockAlign !== expectedBlockAlign) {
-    diagnostics.push(diagnostic('invalid_consistency', 'error', `Block align ${actualBlockAlign ?? 'unknown'} does not match ${channelCount} channel(s) × ${Math.ceil((bits ?? 0) / 8)} byte(s).`, blockAlign?.span ?? structure.span));
+    diagnostics.add(diagnostic(WAV_DIAGNOSTIC_CODES.invalidConsistency, 'error', `Block align ${actualBlockAlign ?? 'unknown'} does not match ${channelCount} channel(s) × ${Math.ceil((bits ?? 0) / 8)} byte(s).`, blockAlign?.span ?? structure.span));
   }
   if (rate !== undefined && expectedBlockAlign !== undefined) {
     const expectedByteRate = rate * expectedBlockAlign;
     if (actualByteRate !== expectedByteRate) {
-      diagnostics.push(diagnostic('invalid_consistency', 'error', `Byte rate ${actualByteRate ?? 'unknown'} does not match sample rate × block align (${expectedByteRate}).`, byteRate?.span ?? structure.span));
+      diagnostics.add(diagnostic(WAV_DIAGNOSTIC_CODES.invalidConsistency, 'error', `Byte rate ${actualByteRate ?? 'unknown'} does not match sample rate × block align (${expectedByteRate}).`, byteRate?.span ?? structure.span));
     }
   }
   return formatTag;
@@ -464,16 +554,26 @@ function inspectionResult(
   structures: Structure[],
   diagnostics: Diagnostic[],
   explicitUnmapped: UnmappedSpan[] = [],
+  status?: Inspection['status'],
 ): Inspection {
+  const inferredStatus: Inspection['status'] = diagnostics.some((item) => item.code === WAV_DIAGNOSTIC_CODES.limitReached)
+    ? 'limit-reached'
+    : diagnostics.some((item) => item.code === WAV_DIAGNOSTIC_CODES.parseAborted)
+      ? 'aborted'
+      : diagnostics.some((item) => item.code === WAV_DIAGNOSTIC_CODES.unsupportedFormat)
+        ? 'unsupported'
+        : diagnostics.some((item) => item.severity === 'error') ? 'partial' : 'ready';
   const unmapped = buildUnmappedSpans(bytes.length, structures, explicitUnmapped);
-  const complete = !diagnostics.some((item) => item.severity === 'error');
+  const resolvedStatus = status ?? inferredStatus;
+  const complete = resolvedStatus === 'ready' && !diagnostics.some((item) => item.severity === 'error');
   return {
     id,
     format: 'wav',
     state: complete ? 'ready' : 'partial',
+    status: resolvedStatus,
     complete,
-    termination: complete ? 'complete' : 'partial',
-    limitReached: false,
+    termination: complete ? 'complete' : resolvedStatus === 'limit-reached' ? 'limit-reached' : resolvedStatus === 'unsupported' ? 'unsupported' : resolvedStatus === 'aborted' ? 'aborted' : 'partial',
+    limitReached: resolvedStatus === 'limit-reached',
     sourceName,
     bytes,
     structures,
@@ -487,8 +587,11 @@ function inspectionResult(
   };
 }
 
-export function inspectWav(bytes: Uint8Array, sourceName = 'hexlens-sample.wav', _metadata: WavInspectionMetadata = {}): Inspection {
-  const diagnostics: Diagnostic[] = [];
+export function inspectWav(input: Uint8Array, sourceName = 'hexlens-sample.wav', metadata: WavInspectionMetadata = {}): Inspection {
+  // Own the source view so callers cannot mutate an active Inspection while a
+  // worker/session is deciding whether its result is still current.
+  const bytes = new Uint8Array(input);
+  const diagnostics = createDiagnosticCollector();
   const structures: Structure[] = [];
   const unmappedSpans: UnmappedSpan[] = [];
   const inspectionId = `wav-${bytes.byteLength}-${bytes[0] ?? 0}`;
@@ -500,20 +603,27 @@ export function inspectWav(bytes: Uint8Array, sourceName = 'hexlens-sample.wav',
       bytes,
       sourceName,
       [],
-      [diagnostic('unsupported_format', 'error', message, { offset: 0, length: Math.min(bytes.length, 12) })],
+      [diagnostic(WAV_DIAGNOSTIC_CODES.unsupportedFormat, 'error', message, { offset: 0, length: Math.min(bytes.length, 12) })],
       unmappedSpans,
+      'unsupported',
     );
   }
 
+  if (bytes.length > WAV_LIMITS.maxBytes) {
+    if (bytes.length >= 12 && structures.length < WAV_LIMITS.maxStructures) structures.push(riffStructure(bytes, u32(bytes, 4), Math.min(bytes.length, 12)));
+    diagnostics.add(diagnostic(WAV_DIAGNOSTIC_CODES.limitReached, 'error', 'The WAV exceeds the 25 MiB local safety limit; only the RIFF root was inspected.', { offset: WAV_LIMITS.maxBytes, length: 0 }));
+    return inspectionResult(inspectionId, bytes, sourceName, structures, diagnostics.items, unmappedSpans, 'limit-reached');
+  }
+
   const declaredLength = u32(bytes, 4);
-  const expectedFileLength = declaredLength + 8;
+  const expectedFileLength = Number.isSafeInteger(declaredLength + 8) ? declaredLength + 8 : Number.MAX_SAFE_INTEGER;
   const containerEnd = Math.min(bytes.length, Math.max(12, expectedFileLength));
   structures.push(riffStructure(bytes, declaredLength, containerEnd));
 
   if (expectedFileLength > bytes.length) {
-    diagnostics.push(diagnostic('truncated_riff', 'error', 'The RIFF container declares bytes beyond the file boundary.', { offset: 4, length: 4 }));
+    diagnostics.add(diagnostic(WAV_DIAGNOSTIC_CODES.truncatedRiff, 'error', 'The RIFF container declares bytes beyond the file boundary.', { offset: 4, length: 4 }));
   } else if (expectedFileLength < bytes.length) {
-    diagnostics.push(diagnostic('invalid_length', 'warning', 'The RIFF container ends before the available file bytes.', { offset: 4, length: 4 }));
+    diagnostics.add(diagnostic(WAV_DIAGNOSTIC_CODES.invalidLength, 'warning', 'The RIFF container ends before the available file bytes.', { offset: 4, length: 4 }));
     addUnmapped(unmappedSpans, bytes, { offset: Math.max(12, expectedFileLength), length: bytes.length - Math.max(12, expectedFileLength) }, 'Bytes beyond the declared RIFF container length.');
   }
 
@@ -522,20 +632,36 @@ export function inspectWav(bytes: Uint8Array, sourceName = 'hexlens-sample.wav',
   let foundFmt = false;
   let foundData = false;
   while (offset < containerEnd) {
+    if (metadata.signal?.aborted) {
+      diagnostics.add(diagnostic(WAV_DIAGNOSTIC_CODES.parseAborted, 'warning', 'Parsing was canceled before the next RIFF chunk could be inspected.', { offset: Math.min(offset, bytes.length), length: 0 }));
+      break;
+    }
+    if (diagnostics.capped) break;
+    if (structures.length >= WAV_LIMITS.maxStructures) {
+      diagnostics.add(diagnostic(WAV_DIAGNOSTIC_CODES.limitReached, 'error', 'The Structure safety limit was reached; parsing stopped before more chunks could be claimed.', { offset: Math.min(offset, bytes.length), length: 0 }));
+      break;
+    }
+
+    const previousOffset = offset;
     const remaining = containerEnd - offset;
     if (remaining < 8) {
-      diagnostics.push(diagnostic('truncated_chunk', 'error', 'A RIFF chunk header is incomplete at the end of the file.', { offset, length: remaining }));
+      diagnostics.add(diagnostic(WAV_DIAGNOSTIC_CODES.truncatedChunk, 'error', 'A RIFF chunk header is incomplete at the end of the file.', { offset, length: remaining }));
       addUnmapped(unmappedSpans, bytes, { offset, length: remaining }, 'Bytes left after an incomplete RIFF chunk header.');
       break;
     }
 
     const type = ascii(bytes, offset, 4);
     const declaredChunkLength = u32(bytes, offset + 4);
-    const chunkEnd = offset + 8 + declaredChunkLength;
-    const chunkFits = chunkEnd >= offset + 8 && chunkEnd <= containerEnd;
+    const envelopeLength = declaredChunkLength + 8;
+    const chunkEnd = offset + envelopeLength;
+    const safeEnvelope = Number.isSafeInteger(envelopeLength)
+      && Number.isSafeInteger(chunkEnd)
+      && envelopeLength >= 8
+      && chunkEnd > offset;
+    const chunkFits = safeEnvelope && chunkEnd <= containerEnd;
     const occurrence = (occurrences.get(type) ?? 0) + 1;
     occurrences.set(type, occurrence);
-    if (!chunkFits) {
+    if (!safeEnvelope || !chunkFits) {
       const available = Math.max(0, containerEnd - offset);
       const partial = type === 'fmt '
         ? fmtStructure(bytes, offset, declaredChunkLength, occurrence, containerEnd)
@@ -545,7 +671,8 @@ export function inspectWav(bytes: Uint8Array, sourceName = 'hexlens-sample.wav',
             ? factStructure(bytes, offset, declaredChunkLength, occurrence, containerEnd)
             : genericChunk(bytes, offset, declaredChunkLength, type, occurrence, containerEnd);
       structures.push(partial);
-      diagnostics.push(diagnostic('truncated_chunk', 'error', `The ${type || 'RIFF'} chunk declares bytes beyond the ${expectedFileLength > bytes.length ? 'file' : 'RIFF container'} boundary.`, { offset, length: available }));
+      diagnostics.add(diagnostic(WAV_DIAGNOSTIC_CODES.invalidLength, 'error', `The ${type || 'RIFF'} chunk declares an unsafe or impossible length; recovery stopped at this boundary.`, { offset, length: Math.min(4, available) }));
+      diagnostics.add(diagnostic(WAV_DIAGNOSTIC_CODES.truncatedChunk, 'error', `The ${type || 'RIFF'} chunk declares bytes beyond the ${expectedFileLength > bytes.length ? 'file' : 'RIFF container'} boundary.`, { offset, length: available }));
       break;
     }
 
@@ -568,21 +695,32 @@ export function inspectWav(bytes: Uint8Array, sourceName = 'hexlens-sample.wav',
     offset = chunkEnd;
     if (declaredChunkLength % 2 === 1) {
       if (offset >= containerEnd || offset >= bytes.length) {
-        diagnostics.push(diagnostic('invalid_alignment', 'error', 'An odd-sized RIFF chunk is missing its required padding byte.', { offset, length: 0 }));
+        diagnostics.add(diagnostic(WAV_DIAGNOSTIC_CODES.invalidAlignment, 'error', 'An odd-sized RIFF chunk is missing its required padding byte.', { offset, length: 0 }));
         break;
       }
       addUnmapped(unmappedSpans, bytes, { offset, length: 1 }, 'Required RIFF padding byte after an odd-sized chunk.');
       offset += 1;
     }
+    if (!Number.isSafeInteger(offset) || offset <= previousOffset) {
+      diagnostics.add(diagnostic(WAV_DIAGNOSTIC_CODES.invalidLength, 'error', 'RIFF parsing did not advance safely; recovery stopped.', { offset: previousOffset, length: Math.max(0, containerEnd - previousOffset) }));
+      break;
+    }
   }
 
-  if (!foundFmt) diagnostics.push(diagnostic('missing_fmt', 'error', 'The RIFF/WAVE file is missing its required fmt chunk.', { offset: 12, length: Math.max(0, containerEnd - 12) }));
-  if (!foundData) diagnostics.push(diagnostic('missing_data', 'error', 'The RIFF/WAVE file is missing its required data chunk.', { offset: 12, length: Math.max(0, containerEnd - 12) }));
+  if (!diagnostics.capped && !metadata.signal?.aborted) {
+    if (!foundFmt) diagnostics.add(diagnostic(WAV_DIAGNOSTIC_CODES.missingFmt, 'error', 'The RIFF/WAVE file is missing its required fmt chunk.', { offset: 12, length: Math.max(0, containerEnd - 12) }));
+    if (!foundData) diagnostics.add(diagnostic(WAV_DIAGNOSTIC_CODES.missingData, 'error', 'The RIFF/WAVE file is missing its required data chunk.', { offset: 12, length: Math.max(0, containerEnd - 12) }));
+  }
 
   const extension = sourceName.match(/\.([^.]+)$/)?.[1]?.toLowerCase();
-  if (extension && extension !== 'wav') {
-    diagnostics.unshift(diagnostic('extension_mismatch', 'note', 'The filename extension does not match the RIFF/WAVE signature. Content determined this Format.', { offset: 0, length: 12 }));
+  if (extension && extension !== 'wav' && !diagnostics.capped) {
+    diagnostics.items.unshift(diagnostic(WAV_DIAGNOSTIC_CODES.extensionMismatch, 'note', 'The filename extension does not match the RIFF/WAVE signature. Content determined this Format.', { offset: 0, length: 12 }));
   }
 
-  return inspectionResult(inspectionId, bytes, sourceName, structures, diagnostics, unmappedSpans);
+  const status: Inspection['status'] = diagnostics.capped
+    ? 'limit-reached'
+    : metadata.signal?.aborted
+      ? 'aborted'
+      : diagnostics.items.some((item) => item.severity === 'error') ? 'partial' : 'ready';
+  return inspectionResult(inspectionId, bytes, sourceName, structures, diagnostics.items, unmappedSpans, status);
 }
