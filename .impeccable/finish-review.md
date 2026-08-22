@@ -1,23 +1,23 @@
-# Impeccable Finish Review — issue #12 final audit
+# Impeccable finish review: Calibrated Lens Console
 
 disposition: ship
 
 ## persistence
 
-pass — `PRODUCT.md`, the landing surface brief, the direction contract with seed key `0f5180d5`, the approved fallback comp at `.impeccable/mocks/decision/assigned.png`, and the required route artifacts are present. One bounded browser round produced valid 1280×720 desktop and 390×844 narrow landing viewport captures plus full-page desktop and narrow inspector, empty, and failure captures. The browser compositor duplicated the landing continuation when asked for a full-page capture, so only the valid viewport captures are used for the landing pair; that limitation is recorded in `docs/release/evidence.md`. `DESIGN.md` records the durable landing and virtual-grid behavior.
+The reviewer inspected five valid viewport captures at 1440×1000 desktop and 390×844 mobile sizes. The production build, 42 unit tests, and 25 browser tests passed. The browser console had no warnings or errors, and the narrow layouts had no horizontal overflow.
 
 ## fidelity
 
-faithful — the captures preserve the comp's single paper sheet, masthead, registration marks, left promise / right tracer topology, oxide action, measured byte density, and footer rhythm. The first viewport proves a live PNG Selection, and the rest of the sheet continues with mechanism, bounded PNG/WAV coverage, and local-only beats without introducing cards or unsupported marketing copy. The inspector extends the same grammar into the toolbar, Structure tree, dominant byte grid, and Field note. TYPE is an acceptable adaptation: the build uses the documented editorial serif plus measured monospace pairing instead of the comp's handwritten metadata treatment. MATERIAL and GROUND match through the shipped paper-texture raster, warm paper field, ink rules, and flat tonal depth. The exact selected Byte span and bracket remain visible on landing and inspector. Mobile is an intentional stack adaptation that preserves source order, the primary action, readable bytes, and 44px controls.
+The implementation matches the Calibrated Lens Console direction. Manrope carries interface text, JetBrains Mono carries bytes and measurements, cobalt marks the active Byte span, and jade marks local-only status. Soft offset shadows, inset data surfaces, and the raised landing inspector supply depth without crowding the workspace. The Structure, byte, and Field views share one Selection. Mobile preserves that relationship through accessible tabs.
 
 ## ceiling
 
-reached — the build uses the world's paper grain, registration marks, hairline rules, bracket geometry, serif/mono lettering contrast, sparse oxide/verdigris ornament, measured ledgers, and reduced-motion stillness. It stays flat and precise without dashboard cards, terminal chrome, gradients, shadows, or decorative motion.
+The final desktop and mobile compositions are clean, restrained, and specific to HexLens. The first viewport demonstrates the byte-to-Structure mechanism. Light and dark themes preserve the same hierarchy and state mapping.
 
-## material_fixes
+## material fixes
 
-clear — no material fidelity, contract, truth, or craft-floor fixes remain. The only evidence limitation is capture compositing on the landing full-page request and the documented lack of a physical VoiceOver/NVDA session; neither changes the shipped UI.
+The first mobile dark captures caught inherited text during a foreground-color transition. The final build removes that transition from `body`, so text contrast changes immediately while the background can still ease between themes. The reviewer scored the fix resolved against recaptured mobile evidence.
 
 ## keep
 
-Keep the warm paper field, exact Byte-span bracket, selectable mini-inspector, and restrained oxide/verdigris state mapping intact as the product grows.
+Keep the synchronized span trace, cobalt and jade state mapping, elevated live inspector, desktop three-pane layout, and mobile tab model.

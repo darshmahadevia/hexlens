@@ -29,6 +29,9 @@ import { VirtualByteGrid, type GridFocusTarget } from './byte-grid-view.ts';
 import { activateNarrowTab, renderNarrowTabs, type NarrowTab } from './narrow-navigation.ts';
 import { renderLanding } from './landing-view.ts';
 import { sampleInspection, PNG_SAMPLE_BASE64, wavSampleInspection, WAV_SAMPLE_BASE64 } from './sample.ts';
+import { initializeTheme, renderThemeToggle, toggleTheme } from './theme.ts';
+
+initializeTheme();
 
 const app = document.querySelector<HTMLDivElement>('#app');
 
@@ -151,15 +154,14 @@ function renderEmptyInspector(): void {
   mount.innerHTML = `
     <main class="app-shell inspector-shell">
       <section class="sheet-frame inspector-sheet empty-inspector" aria-labelledby="inspector-title" data-drop-target="inspector">
-        <div class="registration registration-top-left" aria-hidden="true"></div>
-        <div class="registration registration-top-right" aria-hidden="true"></div>
         <header class="inspector-toolbar" aria-label="Inspection toolbar">
           <a href="${router.href('/')}" class="back-link">← Back to landing</a>
           <div class="toolbar-title"><span class="wordmark wordmark-small">HexLens</span><span class="toolbar-divider" aria-hidden="true"></span><h1 id="inspector-title">Open an Inspection</h1></div>
           <div class="file-identity"><strong>No file selected</strong><span>${narrow ? 'Bundled PNG or WAV Sample' : 'Local PNG or WAV'}</span></div>
+          ${renderThemeToggle()}
         </header>
         ${renderStatus()}
-        <div class="empty-inspector-content"><span class="plate-mark">${narrow ? 'Sample Inspection' : 'One file, one Inspection'}</span><h2>${narrow ? 'Choose a Sample to begin.' : 'Bring a PNG or WAV to the workbench.'}</h2><p>${narrow ? 'Phone view is reserved for the bundled PNG and WAV Samples. Choose one to explore its Structures, bytes, and Fields.' : 'Choose one local PNG or WAV, or drop it here. HexLens checks the bytes on this device and keeps the current file in memory only.'}</p>${narrow ? `<div class="sample-links" aria-label="Sample files"><a class="button button-primary" href="${router.href('/inspect?sample=png')}">Open PNG Sample</a><a class="button button-secondary" href="${router.href('/inspect?sample=wav')}">Open WAV Sample</a></div>` : `${renderFileIngress()}<p class="drop-hint">Drop one PNG or WAV file · directories and multiple files are not accepted.</p>`}${renderNotice()}</div>
+        <div class="empty-inspector-content"><span class="plate-mark">${narrow ? 'Sample Inspection' : 'One file, one Inspection'}</span><h2>${narrow ? 'Choose a Sample to begin.' : 'Bring a PNG or WAV into focus.'}</h2><p>${narrow ? 'Phone view is reserved for the bundled PNG and WAV Samples. Choose one to explore its Structures, bytes, and Fields.' : 'Choose one local PNG or WAV, or drop it here. HexLens checks the bytes on this device and keeps the current file in memory only.'}</p>${narrow ? `<div class="sample-links" aria-label="Sample files"><a class="button button-primary" href="${router.href('/inspect?sample=png')}">Open PNG Sample</a><a class="button button-secondary" href="${router.href('/inspect?sample=wav')}">Open WAV Sample</a></div>` : `${renderFileIngress()}<p class="drop-hint">Drop one PNG or WAV file · directories and multiple files are not accepted.</p>`}${renderNotice()}</div>
       </section>
     </main>
   `;
@@ -501,15 +503,14 @@ function renderInspector(target: InspectionSession, requestedSelection?: ByteSpa
   mount.innerHTML = `
     <main class="app-shell inspector-shell">
       <section class="sheet-frame inspector-sheet" aria-labelledby="inspector-title" data-drop-target="inspector">
-        <div class="registration registration-top-left" aria-hidden="true"></div>
-        <div class="registration registration-top-right" aria-hidden="true"></div>
         <header class="inspector-toolbar">
           <a href="${router.href('/')}" class="back-link">← Back to landing</a>
           <div class="toolbar-title"><span class="wordmark wordmark-small">HexLens</span><span class="toolbar-divider" aria-hidden="true"></span><h1 id="inspector-title">${target.kind === 'local' ? 'Local Inspection' : 'Sample Inspection'}</h1></div>
           <div class="file-identity"><strong title="${escapeHtml(sourceName)}" aria-label="${target.kind === 'local' ? `Local filename: ${escapeHtml(sourceName)}` : escapeHtml(sourceName)}">${escapeHtml(sourceName)}</strong><span>${inspection.bytes.length.toLocaleString('en-US')} bytes · ${displayFormat}${target.kind === 'local' ? ' · local' : ''}</span></div>
+          ${renderThemeToggle()}
         </header>
         ${renderStatus(inspection)}
-        ${narrow ? '<p class="narrow-sample-note">Bundled Sample · phone view keeps the inspection focused on Structures, bytes, and Fields.</p>' : '<div class="inspector-ingress"><div><strong>Open another local file</strong><span>Choose one PNG or WAV file, or drop it anywhere on this workbench.</span></div>' + renderFileIngress() + '</div>'}
+        ${narrow ? '<p class="narrow-sample-note">Bundled Sample · phone view keeps the inspection focused on Structures, bytes, and Fields.</p>' : '<div class="inspector-ingress"><div><strong>Open another local file</strong><span>Choose one PNG or WAV file, or drop it anywhere in this window.</span></div>' + renderFileIngress() + '</div>'}
         ${renderNotice()}
         ${renderRecoveryActions(inspection)}
         ${renderDiagnostics(inspection)}
@@ -706,7 +707,11 @@ mount.addEventListener('change', (event) => {
 });
 
 mount.addEventListener('click', (event) => {
-  const clicked = event.target instanceof HTMLElement ? event.target : null;
+  const clicked = event.target instanceof Element ? event.target : null;
+  if (clicked?.closest('[data-theme-toggle]')) {
+    toggleTheme();
+    return;
+  }
   const cancelTarget = clicked?.closest('[data-cancel-job]');
   if (cancelTarget) {
     cancelFileJob();

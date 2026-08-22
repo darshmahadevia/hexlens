@@ -1,98 +1,474 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-08-22T02:47:13Z",
+  "generatedAt": "2026-08-22T04:20:19Z",
   "title": "Design System: HexLens",
   "extensions": {
     "colorMeta": {
-      "paper": { "role": "neutral", "displayName": "Conservation Paper", "canonical": "#f2ead8", "tonalRamp": ["#f8f1e2", "#f2ead8", "#e6dac1"] },
-      "paper-deep": { "role": "neutral", "displayName": "Deep Paper", "canonical": "#e6dac1", "tonalRamp": ["#f2ead8", "#e6dac1", "#d5c9b2"] },
-      "paper-quiet": { "role": "neutral", "displayName": "Quiet Paper", "canonical": "#ece2ce", "tonalRamp": ["#f2ead8", "#ece2ce", "#e6dac1"] },
-      "outer-field": { "role": "neutral", "displayName": "Outer Field", "canonical": "#d5c9b2", "tonalRamp": ["#ece2ce", "#d5c9b2", "#c6b89f"] },
-      "ink": { "role": "neutral", "displayName": "Charcoal Ink", "canonical": "#1d2826", "tonalRamp": ["#53605b", "#1d2826", "#101715"] },
-      "ink-soft": { "role": "neutral", "displayName": "Soft Ink", "canonical": "#53605b", "tonalRamp": ["#84918a", "#53605b", "#1d2826"] },
-      "rule": { "role": "neutral", "displayName": "Registration Rule", "canonical": "rgba(29, 40, 38, 0.42)", "tonalRamp": ["rgba(29, 40, 38, 0.14)", "rgba(29, 40, 38, 0.42)", "#1d2826"] },
-      "oxide": { "role": "primary", "displayName": "Oxide", "canonical": "#a94f39", "tonalRamp": ["#d28b77", "#a94f39", "#813523"] },
-      "oxide-dark": { "role": "primary", "displayName": "Oxide Dark", "canonical": "#813523", "tonalRamp": ["#a94f39", "#813523", "#5e2418"] },
-      "verdigris": { "role": "secondary", "displayName": "Verdigris", "canonical": "#39756b", "tonalRamp": ["#72a39a", "#39756b", "#24534d"] },
-      "focus": { "role": "secondary", "displayName": "Focus Teal", "canonical": "#155e55", "tonalRamp": ["#39756b", "#155e55", "#0a3832"] },
-      "paper-light": { "role": "neutral", "displayName": "Paper Light", "canonical": "#fffaf0", "tonalRamp": ["#fffdf8", "#fffaf0", "#f2ead8"] }
+      "canvas": {
+        "role": "neutral",
+        "displayName": "Canvas",
+        "canonical": "#eef1f6",
+        "tonalRamp": ["#edf1f7", "#eef1f6", "#fbfcfe"]
+      },
+      "canvas-dark": {
+        "role": "neutral",
+        "displayName": "Canvas Dark",
+        "canonical": "#0c1019",
+        "tonalRamp": ["#0b1019", "#0c1019", "#121722"]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Paper",
+        "canonical": "#fbfcfe",
+        "tonalRamp": ["#f0f3f8", "#fbfcfe", "#ffffff"]
+      },
+      "paper-dark": {
+        "role": "neutral",
+        "displayName": "Paper Dark",
+        "canonical": "#121722",
+        "tonalRamp": ["#0e131d", "#121722", "#181e2a"]
+      },
+      "paper-deep": {
+        "role": "neutral",
+        "displayName": "Deep Paper",
+        "canonical": "#f0f3f8",
+        "tonalRamp": ["#eef1f6", "#f0f3f8", "#f5f7fb"]
+      },
+      "paper-deep-dark": {
+        "role": "neutral",
+        "displayName": "Deep Paper Dark",
+        "canonical": "#0e131d",
+        "tonalRamp": ["#0b1019", "#0e131d", "#171d29"]
+      },
+      "paper-quiet": {
+        "role": "neutral",
+        "displayName": "Quiet Paper",
+        "canonical": "#f5f7fb",
+        "tonalRamp": ["#f0f3f8", "#f5f7fb", "#ffffff"]
+      },
+      "paper-quiet-dark": {
+        "role": "neutral",
+        "displayName": "Quiet Paper Dark",
+        "canonical": "#171d29",
+        "tonalRamp": ["#0e131d", "#171d29", "#181e2a"]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Translucent Surface",
+        "canonical": "rgba(251, 252, 254, 0.94)",
+        "tonalRamp": ["rgba(251, 252, 254, 0.94)", "#fbfcfe", "#ffffff"]
+      },
+      "surface-dark": {
+        "role": "neutral",
+        "displayName": "Translucent Surface Dark",
+        "canonical": "rgba(18, 23, 34, 0.95)",
+        "tonalRamp": ["rgba(18, 23, 34, 0.95)", "#121722", "#181e2a"]
+      },
+      "surface-raised": {
+        "role": "neutral",
+        "displayName": "Raised Surface",
+        "canonical": "#ffffff",
+        "tonalRamp": ["#fbfcfe", "#ffffff", "#f5f7fb"]
+      },
+      "surface-raised-dark": {
+        "role": "neutral",
+        "displayName": "Raised Surface Dark",
+        "canonical": "#181e2a",
+        "tonalRamp": ["#121722", "#181e2a", "#171d29"]
+      },
+      "surface-sunken": {
+        "role": "neutral",
+        "displayName": "Sunken Surface",
+        "canonical": "#edf1f7",
+        "tonalRamp": ["#f0f3f8", "#edf1f7", "#eef1f6"]
+      },
+      "surface-sunken-dark": {
+        "role": "neutral",
+        "displayName": "Sunken Surface Dark",
+        "canonical": "#0b1019",
+        "tonalRamp": ["#0c1019", "#0b1019", "#0e131d"]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#172033",
+        "tonalRamp": ["#667085", "#172033", "#0d1321"]
+      },
+      "ink-dark": {
+        "role": "neutral",
+        "displayName": "Ink Dark",
+        "canonical": "#edf0f7",
+        "tonalRamp": ["#9ca6b8", "#edf0f7", "#ffffff"]
+      },
+      "ink-soft": {
+        "role": "neutral",
+        "displayName": "Soft Ink",
+        "canonical": "#667085",
+        "tonalRamp": ["#98a2b3", "#667085", "#172033"]
+      },
+      "ink-soft-dark": {
+        "role": "neutral",
+        "displayName": "Soft Ink Dark",
+        "canonical": "#9ca6b8",
+        "tonalRamp": ["#667085", "#9ca6b8", "#edf0f7"]
+      },
+      "rule": {
+        "role": "neutral",
+        "displayName": "Rule",
+        "canonical": "rgba(23, 32, 51, 0.11)",
+        "tonalRamp": ["rgba(23, 32, 51, 0.06)", "rgba(23, 32, 51, 0.11)", "rgba(23, 32, 51, 0.18)"]
+      },
+      "rule-dark": {
+        "role": "neutral",
+        "displayName": "Rule Dark",
+        "canonical": "rgba(226, 232, 244, 0.10)",
+        "tonalRamp": ["rgba(226, 232, 244, 0.06)", "rgba(226, 232, 244, 0.10)", "rgba(226, 232, 244, 0.18)"]
+      },
+      "rule-strong": {
+        "role": "neutral",
+        "displayName": "Strong Rule",
+        "canonical": "rgba(23, 32, 51, 0.18)",
+        "tonalRamp": ["rgba(23, 32, 51, 0.11)", "rgba(23, 32, 51, 0.18)", "#172033"]
+      },
+      "rule-strong-dark": {
+        "role": "neutral",
+        "displayName": "Strong Rule Dark",
+        "canonical": "rgba(226, 232, 244, 0.18)",
+        "tonalRamp": ["rgba(226, 232, 244, 0.10)", "rgba(226, 232, 244, 0.18)", "#edf0f7"]
+      },
+      "cobalt": {
+        "role": "primary",
+        "displayName": "Cobalt",
+        "canonical": "#5b61f4",
+        "tonalRamp": ["#8b90ff", "#5b61f4", "#4147d7"]
+      },
+      "cobalt-dark": {
+        "role": "primary",
+        "displayName": "Cobalt Dark",
+        "canonical": "#8b90ff",
+        "tonalRamp": ["#5b61f4", "#8b90ff", "#a7aaff"]
+      },
+      "cobalt-deep": {
+        "role": "primary",
+        "displayName": "Cobalt Deep",
+        "canonical": "#4147d7",
+        "tonalRamp": ["#5b61f4", "#4147d7", "#3036ae"]
+      },
+      "cobalt-deep-dark": {
+        "role": "primary",
+        "displayName": "Cobalt Deep Dark",
+        "canonical": "#a7aaff",
+        "tonalRamp": ["#8b90ff", "#a7aaff", "#c4c6ff"]
+      },
+      "jade": {
+        "role": "secondary",
+        "displayName": "Jade",
+        "canonical": "#187a66",
+        "tonalRamp": ["#55c7ad", "#187a66", "#12604f"]
+      },
+      "jade-dark": {
+        "role": "secondary",
+        "displayName": "Jade Dark",
+        "canonical": "#55c7ad",
+        "tonalRamp": ["#187a66", "#55c7ad", "#8fe0cd"]
+      },
+      "focus": {
+        "role": "secondary",
+        "displayName": "Focus Cobalt",
+        "canonical": "#4057e3",
+        "tonalRamp": ["#5b61f4", "#4057e3", "#2c3abd"]
+      },
+      "focus-dark": {
+        "role": "secondary",
+        "displayName": "Focus Cobalt Dark",
+        "canonical": "#aab7ff",
+        "tonalRamp": ["#8b90ff", "#aab7ff", "#d0d6ff"]
+      },
+      "accent-soft": {
+        "role": "primary",
+        "displayName": "Cobalt Wash",
+        "canonical": "rgba(91, 97, 244, 0.10)",
+        "tonalRamp": ["rgba(91, 97, 244, 0.06)", "rgba(91, 97, 244, 0.10)", "rgba(91, 97, 244, 0.16)"]
+      },
+      "accent-soft-dark": {
+        "role": "primary",
+        "displayName": "Cobalt Wash Dark",
+        "canonical": "rgba(139, 144, 255, 0.16)",
+        "tonalRamp": ["rgba(139, 144, 255, 0.08)", "rgba(139, 144, 255, 0.16)", "rgba(139, 144, 255, 0.22)"]
+      },
+      "accent-softer": {
+        "role": "primary",
+        "displayName": "Quiet Cobalt Wash",
+        "canonical": "rgba(91, 97, 244, 0.06)",
+        "tonalRamp": ["rgba(91, 97, 244, 0.03)", "rgba(91, 97, 244, 0.06)", "rgba(91, 97, 244, 0.10)"]
+      },
+      "accent-softer-dark": {
+        "role": "primary",
+        "displayName": "Quiet Cobalt Wash Dark",
+        "canonical": "rgba(139, 144, 255, 0.08)",
+        "tonalRamp": ["rgba(139, 144, 255, 0.04)", "rgba(139, 144, 255, 0.08)", "rgba(139, 144, 255, 0.12)"]
+      },
+      "success-soft": {
+        "role": "secondary",
+        "displayName": "Jade Wash",
+        "canonical": "rgba(24, 122, 102, 0.10)",
+        "tonalRamp": ["rgba(24, 122, 102, 0.06)", "rgba(24, 122, 102, 0.10)", "rgba(24, 122, 102, 0.14)"]
+      },
+      "success-soft-dark": {
+        "role": "secondary",
+        "displayName": "Jade Wash Dark",
+        "canonical": "rgba(85, 199, 173, 0.12)",
+        "tonalRamp": ["rgba(85, 199, 173, 0.08)", "rgba(85, 199, 173, 0.12)", "rgba(85, 199, 173, 0.18)"]
+      },
+      "on-accent": {
+        "role": "neutral",
+        "displayName": "On Accent",
+        "canonical": "#ffffff",
+        "tonalRamp": ["#ffffff", "#ffffff", "#edf0f7"]
+      }
     },
     "typographyMeta": {
-      "display": { "displayName": "Editorial Display", "purpose": "Landing promise and the largest empty-state headings." },
-      "body": { "displayName": "Editorial Body", "purpose": "Explanatory copy and Field notes." },
-      "label": { "displayName": "Measured Mono", "purpose": "Offsets, byte values, labels, metadata, status, and controls." }
+      "display": {
+        "displayName": "Manrope Display",
+        "purpose": "Landing promise and the largest empty-state headings."
+      },
+      "control": {
+        "displayName": "Manrope Control",
+        "purpose": "Buttons and other compact interface actions."
+      },
+      "headline": {
+        "displayName": "Manrope Headline",
+        "purpose": "Landing beat headings and local close."
+      },
+      "title": {
+        "displayName": "Manrope Title",
+        "purpose": "Structure headings and selected semantic labels."
+      },
+      "body": {
+        "displayName": "Manrope Body",
+        "purpose": "Explanatory copy, support text, and Field notes."
+      },
+      "label": {
+        "displayName": "JetBrains Mono Data",
+        "purpose": "Bytes, offsets, status, controls, Diagnostics, and compact metadata."
+      }
     },
-    "shadows": [],
+    "shadows": [
+      {
+        "name": "shell-light",
+        "value": "0 28px 70px rgba(31, 42, 68, 0.14), 0 4px 14px rgba(31, 42, 68, 0.06)",
+        "purpose": "Soft offset depth under the coherent route shell in light mode."
+      },
+      {
+        "name": "shell-dark",
+        "value": "0 30px 80px rgba(0, 0, 0, 0.48), 0 4px 18px rgba(0, 0, 0, 0.26)",
+        "purpose": "Soft offset depth under the coherent route shell in dark mode."
+      },
+      {
+        "name": "panel-light",
+        "value": "0 16px 40px rgba(31, 42, 68, 0.10), 0 2px 8px rgba(31, 42, 68, 0.05)",
+        "purpose": "Lift for the landing inspector, ledgers, and raised data panels in light mode."
+      },
+      {
+        "name": "panel-dark",
+        "value": "0 18px 45px rgba(0, 0, 0, 0.32), 0 2px 10px rgba(0, 0, 0, 0.18)",
+        "purpose": "Lift for raised data panels in dark mode."
+      },
+      {
+        "name": "control-light",
+        "value": "0 7px 16px rgba(65, 71, 215, 0.22), 0 2px 4px rgba(65, 71, 215, 0.12)",
+        "purpose": "Short tactile lift for the primary action in light mode."
+      },
+      {
+        "name": "control-dark",
+        "value": "0 8px 20px rgba(0, 0, 0, 0.34), 0 2px 5px rgba(139, 144, 255, 0.18)",
+        "purpose": "Short tactile lift for the primary action in dark mode."
+      },
+      {
+        "name": "inset-light",
+        "value": "inset 0 1px 2px rgba(23, 32, 51, 0.07)",
+        "purpose": "Recessed treatment for byte data and selected-span summaries in light mode."
+      },
+      {
+        "name": "inset-dark",
+        "value": "inset 0 1px 2px rgba(0, 0, 0, 0.28)",
+        "purpose": "Recessed treatment for byte data and selected-span summaries in dark mode."
+      }
+    ],
     "motion": [
-      { "name": "control-hover", "value": "180ms ease-out", "purpose": "Small color and 2px translation response on interactive controls." },
-      { "name": "reduced-motion", "value": "0.01ms", "purpose": "Collapse transitions for prefers-reduced-motion users." }
+      {
+        "name": "theme-background",
+        "value": "240ms ease",
+        "purpose": "Background color transition only; foreground text changes immediately with the theme tokens."
+      },
+      {
+        "name": "control-response",
+        "value": "170ms cubic-bezier(.2,.8,.2,1)",
+        "purpose": "Short lift and return for buttons and controls."
+      },
+      {
+        "name": "surface-response",
+        "value": "170ms ease",
+        "purpose": "Short surface, color, and shadow response on hover."
+      },
+      {
+        "name": "byte-selection",
+        "value": "180ms ease-out",
+        "purpose": "Brief selection trace when a byte cell becomes active."
+      },
+      {
+        "name": "theme-icon",
+        "value": "180ms opacity and 320ms cubic-bezier(.2,.8,.2,1) transform",
+        "purpose": "Functional sun/moon cross-fade and rotation in the theme toggle."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "0s",
+        "purpose": "Disable transitions and animations for prefers-reduced-motion users."
+      }
     ],
     "breakpoints": [
-      { "name": "wide", "value": "1120px" },
-      { "name": "stack", "value": "900px" },
-      { "name": "narrow", "value": "620px" }
+      {
+        "name": "wide",
+        "value": "1120px"
+      },
+      {
+        "name": "stack",
+        "value": "900px"
+      },
+      {
+        "name": "narrow",
+        "value": "620px"
+      }
     ]
   },
   "components": [
     {
-      "name": "Primary Button",
+      "name": "Primary Action",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "The single oxide action into the Sample Inspection.",
-      "html": "<button class=\"ds-btn-primary\">TRY THE SAMPLE <span aria-hidden=\"true\">→</span></button>",
-      "css": ".ds-btn-primary { display: inline-flex; align-items: center; gap: 18px; min-height: 52px; padding: 13px 24px; border: 1px solid var(--oxide-dark); border-radius: 0; background: var(--oxide); color: var(--paper-light); font: 0.77rem var(--mono); letter-spacing: 0.05em; text-transform: uppercase; transition: background-color 180ms ease-out, color 180ms ease-out, transform 180ms ease-out; } .ds-btn-primary:hover { background: var(--oxide-dark); transform: translateY(-2px); } .ds-btn-primary:focus-visible { outline: 3px solid var(--focus); outline-offset: 4px; }"
+      "description": "The cobalt action that opens the deterministic Sample Inspection.",
+      "html": "<a class='button button-primary' href='/inspect?sample=png'>Try the sample <span aria-hidden='true'>→</span></a>",
+      "css": ".button.button-primary { display: inline-flex; align-items: center; gap: 16px; min-height: 46px; padding: 11px 18px; border: 1px solid transparent; border-radius: 13px; background: var(--oxide); color: #fff; box-shadow: var(--shadow-control); font-family: 'Manrope Variable', 'Manrope', sans-serif; font-size: .82rem; font-variation-settings: 'wght' 620; transition: transform 170ms cubic-bezier(.2,.8,.2,1), box-shadow 170ms ease, background-color 170ms ease; } .button.button-primary:hover { background: var(--oxide-dark); transform: translateY(-2px); }"
     },
     {
-      "name": "Secondary Button",
+      "name": "Theme Toggle",
       "kind": "button",
-      "refersTo": "button-secondary",
-      "description": "A quiet later-slice action that remains visible but disabled in the PNG slice.",
-      "html": "<button class=\"ds-btn-secondary\" disabled>OPEN A FILE</button>",
-      "css": ".ds-btn-secondary { min-height: 52px; padding: 13px 24px; border: 1px solid var(--ink); border-radius: 0; background: transparent; color: var(--ink); font: 0.77rem var(--mono); letter-spacing: 0.05em; text-transform: uppercase; } .ds-btn-secondary:disabled { border-color: rgba(29, 40, 38, 0.45); color: var(--ink-soft); cursor: not-allowed; opacity: 0.82; } .ds-btn-secondary:focus-visible { outline: 3px solid var(--focus); outline-offset: 4px; }"
+      "refersTo": "theme-toggle",
+      "description": "A persistent light/dark environment control present on landing and inspector toolbars.",
+      "html": "<button class='theme-toggle' type='button' aria-label='Switch to dark mode'><svg class='theme-icon theme-icon-sun' aria-hidden='true'></svg></button>",
+      "css": ".theme-toggle { display: grid; width: 42px; height: 42px; place-items: center; border: 1px solid var(--rule); border-radius: 13px; background: var(--surface-raised); color: var(--ink-soft); box-shadow: 0 5px 14px rgba(31, 42, 68, 0.08); transition: color 180ms ease, transform 180ms cubic-bezier(.2,.8,.2,1), box-shadow 180ms ease; } .theme-toggle:hover { color: var(--ink); transform: translateY(-1px); box-shadow: var(--shadow-panel); }"
     },
     {
-      "name": "Sheet Frame",
-      "kind": "card",
+      "name": "Empty Inspector",
+      "kind": "custom",
       "refersTo": "sheet",
-      "description": "A single paper workbench containing a coherent route.",
-      "html": "<section class=\"ds-sheet\"><h2>Sample: PNG</h2><p>Measured content lives on one sheet.</p></section>",
-      "css": ".ds-sheet { position: relative; overflow: hidden; border: 1px solid rgba(29, 40, 38, 0.42); border-radius: 0; background-color: var(--paper); color: var(--ink); } .ds-sheet::before { content: \"\"; position: absolute; inset: 14px; pointer-events: none; border: 1px solid rgba(29, 40, 38, 0.26); }"
+      "description": "The empty desktop entry state uses direct optical language and keeps local file handling explicit.",
+      "html": "<section class='empty-inspector-content'><h2>Bring a PNG or WAV into focus.</h2><p>Choose one local PNG or WAV, or drop it anywhere in this window.</p></section>",
+      "css": ".empty-inspector-content { max-width: 720px; padding: clamp(72px, 10vw, 150px) clamp(30px, 8vw, 120px); } .empty-inspector-content h2 { max-width: 12ch; margin: 16px 0 18px; color: var(--ink); font-size: clamp(2.5rem, 6vw, 5.2rem); font-variation-settings: 'wght' 640; letter-spacing: -.04em; }"
+    },
+    {
+      "name": "Landing Live Inspector",
+      "kind": "card",
+      "refersTo": "sample-inspector",
+      "description": "The perspective sample surface that links a real PNG span to its Structure and Field note.",
+      "html": "<section class='sample-plate' aria-label='PNG Sample inspector'><div class='byte-cells'><button class='byte-cell is-selected'>89</button></div><aside class='landing-selection-note'>Selected Signature</aside></section>",
+      "css": ".sample-plate { position: relative; padding: clamp(22px, 3vw, 36px); border: 1px solid var(--rule); border-radius: 20px; background: var(--surface-raised); box-shadow: var(--shadow-panel); transform: perspective(1100px) rotateY(-1.5deg) rotateX(.75deg); } .sample-plate::after { content: ''; position: absolute; z-index: -1; inset: 22px -16px -18px 22px; border-radius: 24px; background: var(--accent-softer); filter: blur(1px); }"
     },
     {
       "name": "Structure Row",
       "kind": "custom",
-      "refersTo": "selection-span",
-      "description": "A source-ordered semantic item tied to an exact Byte span.",
-      "html": "<button class=\"ds-structure-row\"><span>08–20</span><strong>IHDR · image header</strong></button>",
-      "css": ".ds-structure-row { display: grid; grid-template-columns: 53px 1fr; gap: 10px; width: 100%; padding: 13px 10px 13px 0; border: 0; border-top: 1px solid rgba(29, 40, 38, 0.42); border-left: 1px solid transparent; border-radius: 0; background: transparent; color: var(--ink); text-align: left; font: 0.75rem var(--mono); } .ds-structure-row:hover { border-left-color: var(--verdigris); } .ds-structure-row[aria-pressed=\"true\"] { border-left-color: var(--oxide); background: rgba(169, 79, 57, 0.08); }"
+      "refersTo": "structure-row",
+      "description": "A semantic source-ordered Structure button tied to an exact Byte span.",
+      "html": "<button class='structure-row' type='button' aria-pressed='true'><span class='structure-index'>08–20</span><span class='structure-copy'><strong>IHDR</strong><small>Header · 13 bytes</small></span></button>",
+      "css": ".structure-list .structure-row { display: grid; grid-template-columns: 53px 1fr; gap: 10px; min-height: 54px; padding: 10px; border: 1px solid transparent; border-radius: 12px; background: transparent; color: var(--ink); text-align: left; } .structure-list .structure-row:hover { border-color: var(--rule); background: var(--paper-quiet); } .structure-list .structure-row.is-selected { border-color: rgba(91, 97, 244, .18); background: var(--accent-soft); box-shadow: var(--shadow-inset); }"
     },
     {
       "name": "Selected Byte Span",
       "kind": "custom",
-      "refersTo": "selection-span",
-      "description": "The raw bytes remain primary and the exact selected range gets an oxide bracket.",
-      "html": "<div class=\"ds-byte-cells\"><span class=\"ds-byte is-selected\">89</span><span class=\"ds-bracket\" aria-hidden=\"true\"></span></div>",
-      "css": ".ds-byte-cells { position: relative; display: grid; grid-template-columns: repeat(16, 1fr); border-top: 1px solid var(--ink); border-bottom: 1px solid var(--ink); } .ds-byte { padding: 13px 3px; border-right: 1px solid rgba(29, 40, 38, 0.34); color: var(--ink); font: 0.74rem var(--mono); text-align: center; } .ds-byte.is-selected { background: var(--oxide); color: var(--paper-light); } .ds-bracket { position: absolute; top: -8px; left: 0; width: 12.5%; height: calc(100% + 15px); border-top: 2px solid var(--oxide); border-bottom: 1px solid var(--oxide); pointer-events: none; }"
+      "refersTo": "selected-byte",
+      "description": "The raw byte cell and its ownership trace for the current Selection.",
+      "html": "<div class='byte-grid-cells'><button class='byte-cell is-selected' aria-pressed='true'>89</button><button class='byte-cell'>50</button></div>",
+      "css": ".byte-grid .byte-cell { min-height: 44px; border-right: 1px solid var(--rule); background: transparent; color: var(--ink); font: .78rem var(--mono); text-align: center; } .byte-grid .byte-cell.is-selected { z-index: 1; background: var(--oxide); color: #fff; outline: 2px solid var(--oxide); outline-offset: -2px; box-shadow: 0 8px 18px rgba(65, 71, 215, .30), inset 0 1px rgba(255, 255, 255, .22); animation: lens-lock 260ms cubic-bezier(.2,.8,.2,1) both; }"
     },
     {
-      "name": "Field Note",
+      "name": "Selection Summary",
       "kind": "custom",
-      "refersTo": "sheet",
-      "description": "The selected Field explains its span, bytes, value, and representation beside the grid.",
-      "html": "<aside class=\"ds-field-note\"><small>SELECTED FIELD</small><h3>Width</h3><p>Image width in pixels.</p><dl><dt>BYTE SPAN</dt><dd>10–13 · 4 bytes</dd></dl></aside>",
-      "css": ".ds-field-note { border-top: 1px solid var(--ink); padding-top: 18px; color: var(--ink); } .ds-field-note small, .ds-field-note dt { color: var(--oxide-dark); font: 0.65rem var(--mono); letter-spacing: 0.08em; text-transform: uppercase; } .ds-field-note h3 { margin: 8px 0; font: 500 1.5rem/1.1 var(--serif, Georgia); } .ds-field-note p { color: var(--ink-soft); font: 0.9rem/1.45 var(--serif, Georgia); } .ds-field-note dl { display: grid; grid-template-columns: 87px 1fr; gap: 8px; } .ds-field-note dd { margin: 0; font: 0.83rem var(--serif, Georgia); }"
+      "refersTo": "selection-span",
+      "description": "A persistent text summary that keeps the exact span legible beside the virtualized grid.",
+      "html": "<div class='selection-summary' role='region'><span class='summary-mark' aria-hidden='true'></span><span>Selected Width, offset 10, length 4 bytes.</span><button class='inline-copy'>Copy selected bytes</button></div>",
+      "css": ".selection-summary { display: flex; align-items: flex-start; gap: 12px; min-height: 58px; margin-top: 32px; padding: 14px; border: 1px solid rgba(91, 97, 244, .16); border-radius: 14px; background: var(--accent-softer); box-shadow: var(--shadow-inset); } .summary-mark { width: 19px; height: 19px; border-radius: 6px; background: var(--oxide); box-shadow: 0 5px 12px rgba(65, 71, 215, .22); }"
+    },
+    {
+      "name": "Field Inspector",
+      "kind": "custom",
+      "refersTo": "data-grid",
+      "description": "The semantic detail column for a selected Field or Structure.",
+      "html": "<aside class='field-detail'><div class='detail-kicker'>Selected Field</div><h3>Width</h3><p class='detail-explanation'>Image width in pixels.</p><dl class='field-facts'><div><dt>Byte span</dt><dd>0A–0D · 4 bytes</dd></div></dl></aside>",
+      "css": ".field-detail { margin-top: 26px; padding-top: 18px; border-top: 1px solid var(--ink); } .field-detail h3 { margin: 8px 0; color: var(--ink); font-size: 1.5rem; font-weight: 500; letter-spacing: -.02em; } .detail-explanation { color: var(--ink-soft); font-size: .9rem; line-height: 1.45; } .field-facts dt { color: var(--ink-soft); font: .6rem var(--mono); text-transform: uppercase; }"
+    },
+    {
+      "name": "Mobile Inspector Tabs",
+      "kind": "nav",
+      "refersTo": "theme-toggle",
+      "description": "The narrow-screen navigation among Structures, Bytes, and Fields.",
+      "html": "<nav class='narrow-inspector-tabs' role='tablist'><button class='narrow-inspector-tab' role='tab' aria-selected='true'>Structures</button><button class='narrow-inspector-tab' role='tab'>Bytes</button><button class='narrow-inspector-tab' role='tab'>Fields</button></nav>",
+      "css": ".narrow-inspector-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; padding: 8px; border-radius: 14px; background: var(--paper-deep); } .narrow-inspector-tab { min-height: 48px; border: 0; border-radius: 10px; background: transparent; color: var(--ink-soft); font: .67rem var(--mono); text-transform: uppercase; } .narrow-inspector-tab[aria-selected='true'] { background: var(--surface-raised); box-shadow: 0 4px 12px rgba(31, 42, 68, .08); color: var(--oxide-dark); }"
     }
   ],
   "narrative": {
-    "northStar": "The Conservation Workbench",
-    "overview": "HexLens is a flat paper-and-ink workbench for connecting raw bytes to the Structures and Fields they support. Serif explanation and monospace measurement stay in separate jobs; thin rules and sparse oxide or verdigris accents carry state without dashboard chrome.",
-    "keyCharacteristics": ["Warm authored paper grain", "Editorial serif plus measured mono", "Hairline registration rules", "Exact selected-span brackets"],
-    "rules": [
-      { "name": "The Rare Accent Rule", "body": "Oxide and verdigris mark meaning or state; they do not decorate every surface.", "section": "colors" },
-      { "name": "The Two-Voice Rule", "body": "Serif carries human explanation while monospace carries measurements and state.", "section": "typography" },
-      { "name": "The Flat Workbench Rule", "body": "Use material, rules, and state contrast for depth; do not stack floating cards.", "section": "elevation" }
+    "northStar": "Calibrated Lens Console",
+    "overview": "HexLens is a neutral light/dark optical workspace for connecting raw bytes to the Structures and Fields they support. Manrope carries interface hierarchy and explanation; JetBrains Mono carries measurement. Cobalt identifies the current Selection and action path; jade identifies local/privacy status. Soft offset depth, inset data surfaces, and a slight landing perspective create a calm console hierarchy.",
+    "keyCharacteristics": [
+      "Neutral light and dark lens environments",
+      "Manrope interface with JetBrains Mono bytes and data",
+      "Cobalt selection with jade local/privacy status",
+      "Soft offset depth and inset data surfaces",
+      "Three-pane desktop inspection with mobile tabs"
     ],
-    "dos": ["Do keep the real Sample and exact Byte span visible early.", "Do preserve the warm paper grain and registration language.", "Do label the Source preview as original-file rendering."],
-    "donts": ["Don't turn the workbench into metric tiles or terminal chrome.", "Don't add gradients or box shadows.", "Don't decode opaque Payload content in the visual layer."]
+    "rules": [
+      {
+        "name": "The Cobalt Selection Rule",
+        "body": "Cobalt identifies the current semantic path and is paired with labels, outlines, ownership boundaries, or summaries.",
+        "section": "colors"
+      },
+      {
+        "name": "The Jade Local Rule",
+        "body": "Jade is reserved for local/privacy, healthy operation, and ownership cues; it is not a second selection color.",
+        "section": "colors"
+      },
+      {
+        "name": "The Two-Register Rule",
+        "body": "Manrope explains the file and JetBrains Mono measures it.",
+        "section": "typography"
+      },
+      {
+        "name": "The Immediate Contrast Rule",
+        "body": "Theme changes swap foreground tokens immediately so dark surfaces never carry light-mode text.",
+        "section": "typography"
+      },
+      {
+        "name": "The Calibrated Depth Rule",
+        "body": "Use one clear lift for a coherent surface and inset treatment for data; depth clarifies hierarchy rather than decorating it.",
+        "section": "elevation"
+      },
+      {
+        "name": "The One Span Rule",
+        "body": "One selected Byte span synchronizes Structure, raw bytes, Field details, and the accessible summary.",
+        "section": "components"
+      }
+    ],
+    "dos": [
+      "Do preserve the local-only promise and deterministic Sample path.",
+      "Do keep the desktop three-pane and mobile tab inspection models legible.",
+      "Do use cobalt for Selection and jade for local/privacy status.",
+      "Do label Source preview as original-file rendering."
+    ],
+    "donts": [
+      "Don't reintroduce the replaced warm paper, serif, oxide, verdigris, or paper-and-ink system.",
+      "Don't turn the console into terminal chrome or a metric-tile dashboard.",
+      "Don't animate foreground text during a theme change.",
+      "Don't decode Payload content or present browser rendering as parsed output."
+    ]
   }
 }

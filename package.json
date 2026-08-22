@@ -6,7 +6,6 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "build:pages": "VITE_BASE_PATH=/hexlens/ npm run build && cp dist/index.html dist/404.html",
     "profile:release": "node --expose-gc --import tsx scripts/profile-release.ts",
     "audit:release": "playwright test tests/browser/release-audit.spec.ts",
     "test": "node --import tsx --test tests/**/*.test.ts",
@@ -20,5 +19,9 @@
     "tsx": "^4.20.3",
     "typescript": "^5.9.2",
     "vite": "^7.1.4"
+  },
+  "dependencies": {
+    "@fontsource-variable/jetbrains-mono": "^5.3.0",
+    "@fontsource-variable/manrope": "^5.3.0"
   }
 }

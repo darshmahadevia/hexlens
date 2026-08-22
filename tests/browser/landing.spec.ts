@@ -37,3 +37,18 @@ test('the landing sheet remains keyboard-usable, motion-safe, and within the nar
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(/\/inspect\?sample=png/);
 });
+
+test('the light and dark theme control persists the visitor preference', async ({ page }) => {
+  await page.goto('/');
+
+  const toggle = page.locator('[data-theme-toggle]');
+  const initialTheme = await page.locator('html').getAttribute('data-theme');
+  await toggle.click();
+
+  const nextTheme = initialTheme === 'dark' ? 'light' : 'dark';
+  await expect(page.locator('html')).toHaveAttribute('data-theme', nextTheme);
+  await expect(toggle).toHaveAttribute('aria-pressed', String(nextTheme === 'dark'));
+
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', nextTheme);
+});

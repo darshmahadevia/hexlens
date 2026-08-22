@@ -2,6 +2,7 @@ import type { ByteSpan, Inspection } from './domain/inspection.ts';
 import { BYTES_PER_ROW, asciiLabel, formatByte, formatDecimalOffset, formatOffset, normalizeSelection, resolveSelection, selectionHex } from './domain/byte-grid.ts';
 import { spanLabel } from './domain/inspection.ts';
 import { renderStructureTree } from './structure-tree.ts';
+import { renderThemeToggle } from './theme.ts';
 
 export interface LandingViewOptions {
   mount: HTMLDivElement;
@@ -64,22 +65,16 @@ export function renderLanding(options: LandingViewOptions, nextSelection: ByteSp
   options.mount.innerHTML = `
     <main class="app-shell landing-shell">
       <section class="sheet-frame landing-sheet" aria-labelledby="landing-title" data-drop-target="landing">
-        <div class="registration registration-top-left" aria-hidden="true"></div>
-        <div class="registration registration-top-right" aria-hidden="true"></div>
         <div class="masthead">
           <a class="wordmark" href="${options.routeHref('/')}" aria-label="HexLens home">HexLens</a>
           <span class="masthead-rule" aria-hidden="true"></span>
-          <span class="masthead-label">Local binary structure inspector</span>
-          <dl class="accession-meta">
-            <div><dt>Acc. no.</dt><dd>HL-2025-001</dd></div>
-            <div><dt>Catalog</dt><dd>Binary / Inspection</dd></div>
-          </dl>
+          <span class="masthead-label"><span class="status-pulse" aria-hidden="true"></span>Local binary inspector</span>
+          ${renderThemeToggle()}
         </div>
 
         <section class="landing-grid landing-beat landing-beat-promise" aria-labelledby="landing-title">
           <div class="landing-copy">
             <h1 id="landing-title"><span>Read the file.</span><span>See the structure.</span></h1>
-            <span class="short-rule" aria-hidden="true"></span>
             <p class="lead-copy">${narrow ? 'HexLens ties each bundled Sample to the named Structures and bytes that form it.' : 'HexLens opens a binary file on your machine and ties its named Structures to the bytes that form them.'}</p>
             <p class="support-copy">No uploads. No guesswork.<br />Just bytes, offsets, and meaning.</p>
             <div class="landing-actions">
@@ -124,7 +119,7 @@ export function renderLanding(options: LandingViewOptions, nextSelection: ByteSp
           <a class="button button-primary landing-final-action" href="${options.routeHref('/inspect?sample=png')}" data-testid="try-sample-final">Try the sample <span aria-hidden="true">→</span></a>
         </section>
 
-        <footer class="sheet-footer"><span>Method: <strong>visual byte inspection</strong></span><span>Medium: <strong>hexadecimal</strong></span><span>Tool: <strong>HexLens (local)</strong></span><span class="stamp" aria-label="HexLens sample mark">HL<br />25</span></footer>
+        <footer class="sheet-footer"><span><strong>HexLens</strong> · local by design</span><span>PNG and WAV</span><span>No uploads. No telemetry.</span></footer>
       </section>
     </main>
   `;
