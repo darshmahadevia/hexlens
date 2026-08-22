@@ -470,10 +470,20 @@ function renderInspectionLesson(inspection: Inspection, resolution: SelectionRes
   const visibleLength = Math.min(resolution.selection.length, 32);
   const visibleBytes = Array.from(inspection.bytes.slice(resolution.selection.offset, resolution.selection.offset + visibleLength), formatByte).join(' ');
   const remainder = resolution.selection.length > visibleLength ? ` + ${resolution.selection.length - visibleLength} more` : '';
+  const selectedKind = resolution.field ? 'Field' : resolution.structure ? 'Structure' : 'Unmapped span';
   return `<article class="inspector-info-panel" data-testid="inspection-info" aria-labelledby="inspection-info-heading">
-    <header><h2 id="inspection-info-heading">${escapeHtml(lesson.title)}</h2><p>${escapeHtml(lesson.meaning)}</p></header>
-    <div class="info-lesson-grid"><section><h3>How to read it</h3><p>${escapeHtml(lesson.reading)}</p></section><section><h3>Where it sits</h3><p>${escapeHtml(lesson.position)}</p></section></div>
-    <div class="info-source-bytes" aria-label="Selected source bytes"><code>${escapeHtml(visibleBytes)}${escapeHtml(remainder)}</code></div>
+    <header><h2 id="inspection-info-heading">${escapeHtml(lesson.title)}</h2><p>Use the selected bytes as evidence. This lesson explains what they represent, why the Format needs them, and how to read their encoded form.</p></header>
+    <div class="info-lesson-grid">
+      <section><h3>What it is</h3><p>${escapeHtml(lesson.meaning)}</p></section>
+      <section><h3>Why it exists</h3><p>${escapeHtml(lesson.why)}</p></section>
+      <section><h3>How to read it</h3><p>${escapeHtml(lesson.reading)}</p></section>
+    </div>
+    <aside class="info-source-bytes" aria-label="Selected source bytes">
+      <div><span>Selection</span><strong>${escapeHtml(selectedKind)}</strong></div>
+      <p>${escapeHtml(lesson.position)}</p>
+      <code>${escapeHtml(visibleBytes)}${escapeHtml(remainder)}</code>
+      <small>These are the original source bytes. HexLens connects the explanation to this exact range.</small>
+    </aside>
   </article>`;
 }
 

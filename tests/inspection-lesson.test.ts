@@ -12,6 +12,7 @@ test('PNG lessons follow the selected Structure and preserve its exact position'
   const lesson = lessonFor(inspection, resolveSelection(inspection, ihdr.span));
   assert.equal(lesson.title, 'The image blueprint');
   assert.match(lesson.meaning, /width, height/);
+  assert.match(lesson.why, /decoder needs these rules/);
   assert.match(lesson.position, /Offsets 8 through 32 of 68 bytes/);
 });
 
@@ -22,5 +23,6 @@ test('WAV lessons explain format-specific Structures', () => {
 
   const lesson = lessonFor(inspection, resolveSelection(inspection, format.span));
   assert.equal(lesson.title, 'The playback blueprint');
+  assert.match(lesson.why, /Sample bytes have no useful sound meaning/);
   assert.match(lesson.reading, /little-endian/);
 });

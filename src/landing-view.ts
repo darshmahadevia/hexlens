@@ -82,6 +82,7 @@ export function renderLanding(options: LandingViewOptions, nextSelection: ByteSp
   options.mount.innerHTML = `
     <main class="app-shell landing-shell editorial-landing">
       <section class="sheet-frame landing-sheet" aria-labelledby="landing-title" data-drop-target="landing">
+        <div class="manuscript-progress" aria-hidden="true"></div>
         <header class="editorial-nav">
           <a class="wordmark" href="${options.routeHref('/')}" aria-label="HexLens home">HexLens</a>
           <nav aria-label="Landing navigation"><a href="#how-it-works">How it works</a><a href="${options.routeHref('/inspect?sample=png')}">Inspector</a></nav>
@@ -102,8 +103,13 @@ export function renderLanding(options: LandingViewOptions, nextSelection: ByteSp
           </div>
 
           <div class="editorial-proof sample-plate" aria-labelledby="sample-title" data-testid="landing-mini-inspector">
-            <div class="editorial-proof-title"><span>One selection</span><h2 id="sample-title">${escapeHtml(selectedLabel)}</h2><span>${selection.length} bytes</span></div>
+            <div class="editorial-proof-title"><span>Follow one selection</span><h2 id="sample-title">${escapeHtml(selectedLabel)}</h2><span>${selection.length} bytes</span></div>
             ${renderByteStrip(options.sample, selection, true, 'landing-', 48)}
+            <ol class="manuscript-path" aria-label="Selection path from bytes to meaning">
+              <li><span>Source bytes</span><code>${spanLabel(selection)}</code></li>
+              <li><span>Structure</span><strong>${escapeHtml(selectedStructure?.label ?? 'Unmapped span')}</strong></li>
+              <li><span>Meaning</span><strong>${escapeHtml(selectedLabel)}</strong></li>
+            </ol>
             <nav class="landing-structure-map" aria-label="PNG sample Structures">${renderStructureTree(options.sample, selection, true, 'landing-')}</nav>
             ${renderLandingSelectionNote(selection)}
             <footer>${localMark(narrow)}<span>No upload. No account.</span></footer>
@@ -114,9 +120,9 @@ export function renderLanding(options: LandingViewOptions, nextSelection: ByteSp
         <section class="editorial-connection landing-beat landing-beat-mechanism" id="how-it-works" aria-labelledby="mechanism-heading" data-testid="landing-beat-mechanism">
           <header><h2 id="mechanism-heading">A span is the explanation.</h2><p>Select a named Structure or a byte. HexLens keeps the decoded value, its explanation, and the exact source range in the same view.</p></header>
           <div class="editorial-connection-rows" aria-label="How a Selection connects bytes and meaning">
-            <div><code>${escapeHtml(selectionHex(options.sample.bytes, selection))}</code><strong>Bytes</strong><p>The original values in source order.</p></div>
-            <div><code>${spanLabel(selection)}</code><strong>Structure</strong><p>${escapeHtml(selectedStructure?.label ?? 'Selected span')} owns this range.</p></div>
-            <div><code>${escapeHtml(selectedLabel)}</code><strong>Meaning</strong><p>${escapeHtml(resolution.field?.explanation ?? selectedStructure?.description ?? 'The parser has not assigned a semantic meaning to this span.')}</p></div>
+            <div data-manuscript-step="bytes"><code>${escapeHtml(selectionHex(options.sample.bytes, selection))}</code><strong>Bytes</strong><p>The original values stay in source order. HexLens never substitutes a decoded preview for this evidence.</p></div>
+            <div data-manuscript-step="structure"><code>${spanLabel(selection)}</code><strong>Structure</strong><p>${escapeHtml(selectedStructure?.label ?? 'Selected span')} claims this exact range under the Format's rules.</p></div>
+            <div data-manuscript-step="meaning"><code>${escapeHtml(selectedLabel)}</code><strong>Meaning</strong><p>${escapeHtml(resolution.field?.explanation ?? selectedStructure?.description ?? 'The parser has not assigned a semantic meaning to this span.')}</p></div>
           </div>
         </section>
 

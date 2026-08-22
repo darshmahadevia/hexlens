@@ -28,6 +28,9 @@ test('the educational route opens Info and follows the selected Structure', asyn
 
   await expect(page.getByRole('tab', { name: 'Info' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByTestId('inspection-info')).toContainText("The file's ID card");
+  await expect(page.getByTestId('inspection-info').getByRole('heading', { name: 'What it is' })).toBeVisible();
+  await expect(page.getByTestId('inspection-info').getByRole('heading', { name: 'Why it exists' })).toBeVisible();
+  await expect(page.getByTestId('inspection-info').getByRole('heading', { name: 'How to read it' })).toBeVisible();
   await page.getByRole('button', { name: /IHDR · image header/ }).click();
   await expect(page.getByTestId('inspection-info')).toContainText('The image blueprint');
   await expect(page.getByTestId('inspection-info')).toContainText('Offsets 8 through 32');
