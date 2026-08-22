@@ -2,6 +2,14 @@ import type { ByteSpan, Diagnostic, Field, Inspection, Structure } from './inspe
 
 export const PNG_SIGNATURE = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
 
+export interface PngInspectionMetadata {
+  mimeType?: string;
+}
+
+export function hasPngSignature(bytes: Uint8Array): boolean {
+  return bytes.length >= PNG_SIGNATURE.length && PNG_SIGNATURE.every((value, index) => bytes[index] === value);
+}
+
 function bytesOf(bytes: Uint8Array, span: ByteSpan): number[] {
   return Array.from(bytes.slice(span.offset, span.offset + span.length));
 }
@@ -94,12 +102,12 @@ function makeChunk(bytes: Uint8Array, offset: number, length: number, type: stri
   };
 }
 
-export function inspectPng(bytes: Uint8Array, sourceName = 'hexlens-sample.png'): Inspection {
+export function inspectPng(bytes: Uint8Array, sourceName = 'hexlens-sample.png', _metadata: PngInspectionMetadata = {}): Inspection {
   const diagnostics: Diagnostic[] = [];
   const structures: Structure[] = [];
   const inspectionId = `png-${bytes.byteLength}-${bytes[0] ?? 0}`;
 
-  if (bytes.length < PNG_SIGNATURE.length || !PNG_SIGNATURE.every((value, index) => bytes[index] === value)) {
+  if (!hasPngSignature(bytes)) {
     return {
       id: inspectionId,
       format: 'png',
@@ -138,6 +146,16 @@ export function inspectPng(bytes: Uint8Array, sourceName = 'hexlens-sample.png')
 
   if (!foundIhdr) diagnostics.push({ code: 'missing_ihdr', severity: 'error', message: 'The PNG is missing its required IHDR chunk.', span: { offset: 8, length: Math.max(0, bytes.length - 8) } });
   if (!foundIend) diagnostics.push({ code: 'missing_iend', severity: 'warning', message: 'The PNG has no IEND marker in the available bytes.', span: { offset: bytes.length, length: 0 } });
+
+  const extension = sourceName.match(/\.([^.]+)$/)?.[1]?.toLowerCase();
+  if (extension && extension !== 'png') {
+    diagnostics.unshift({
+      code: 'extension_mismatch',
+      severity: 'note',
+      message: 'The filename extension does not match the PNG signature. Content determined this Format.',
+      span: { offset: 0, length: PNG_SIGNATURE.length },
+    });
+  }
 
   return { id: inspectionId, format: 'png', state: diagnostics.some((item) => item.severity === 'error') ? 'partial' : 'ready', sourceName, bytes, structures, diagnostics };
 }
