@@ -30,6 +30,25 @@ test('unsupported input is a distinct raw-byte Inspection with bounded generic D
   assert.equal(inspection.diagnostics[0]?.message.includes('evil'), false);
 });
 
+test('an unsupported local job publishes a bounded raw-byte Inspection instead of a rejection', async () => {
+  const accepted: string[] = [];
+  const controller = new FileJobController(
+    async (file) => file.arrayBuffer(),
+    (bytes, file) => ({ accepted: true as const, value: inspectDetected(bytes, file.name, { mimeType: file.type }) }),
+    async () => undefined,
+  );
+  const file = new File([Uint8Array.from([0xde, 0xad, 0xbe, 0xef])], 'notes.bin', { type: 'application/octet-stream' });
+  controller.start(file, {
+    onPhase: () => undefined,
+    onAccepted: (inspection) => accepted.push(`${inspection.status}:${inspection.diagnostics[0]?.code}`),
+    onRejected: () => accepted.push('rejected'),
+    onError: () => accepted.push('error'),
+  });
+
+  await delay(10);
+  assert.deepEqual(accepted, ['unsupported:unsupported_format']);
+});
+
 test('WAV hostile lengths stop at the unsafe boundary without recovery or a hang', () => {
   const bytes = Uint8Array.from([
     ...RIFF_SIGNATURE, 0xff, 0xff, 0xff, 0xff,

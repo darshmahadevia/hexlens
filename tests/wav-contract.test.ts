@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { detectFormat, inspectWav } from '../src/format.ts';
+import { detectFormat, inspectWav, WAV_LIMITS } from '../src/format.ts';
 import {
+  chunk,
   extensibleWav,
   floatWav,
   infoPayload,
@@ -66,6 +67,20 @@ test('IEEE-float WAV exposes tag 3 and conditional fact sample count', () => {
   assertPublicSpans(floatWav, inspection);
 });
 
+test('IEEE-float WAV without fact is partial and marks the missing requirement', () => {
+  const bytes = wav([
+    { id: 'fmt ', payload: fmtPayload({ tag: 3, bitsPerSample: 32, blockAlign: 4, byteRate: 32_000 }) },
+    { id: 'data', payload: [0x00, 0x00, 0x80, 0x3f] },
+  ]);
+  const inspection = inspectWav(bytes);
+
+  assert.equal(inspection.status, 'partial');
+  assert.equal(inspection.complete, false);
+  assert.ok(inspection.diagnostics.some((item) => item.code === 'missing_fact'));
+  assert.ok(inspection.structures.some((item) => item.diagnosticCodes?.includes('missing_fact')));
+  assertPublicSpans(bytes, inspection);
+});
+
 test('LIST/INFO identifiers are public Structures while unknown chunks remain generic', () => {
   const inspection = inspectWav(metadataWav);
   const list = inspection.structures.find((structure) => structure.name === 'list');
@@ -86,7 +101,41 @@ test('LIST/INFO identifiers are public Structures while unknown chunks remain ge
   const unknown = inspection.structures.find((structure) => structure.name === 'junk');
   assert.equal(unknown?.fields.find((field) => field.name === 'payload')?.value, 'opaque bytes');
   assert.equal(inspection.diagnostics.length, 0);
+  assert.equal(list?.parentId, 'wav-riff');
+  assert.ok(inspection.structures.filter((item) => item.id !== 'wav-riff').every((item) => item.parentId === 'wav-riff' || item.parentId === list?.id));
   assertPublicSpans(metadataWav, inspection);
+});
+
+test('WAV Field status distinguishes absent, opaque, and invalid values', () => {
+  const absent = inspectWav(wav([{ id: 'fmt ', payload: [1, 0] }]));
+  const opaque = inspectWav(metadataWav).structures.find((item) => item.name === 'junk')?.fields.find((item) => item.name === 'payload');
+  const invalid = inspectWav(unsupportedTagWav).structures.find((item) => item.name === 'fmt')?.fields.find((item) => item.name === 'audioFormat');
+
+  assert.equal(absent.structures.find((item) => item.name === 'fmt')?.fields.find((item) => item.name === 'channels')?.status, 'absent');
+  assert.equal(opaque?.status, 'opaque');
+  assert.equal(invalid?.status, 'invalid');
+  assertPublicSpans(absent.bytes, absent);
+});
+
+test('nested LIST/INFO structure cap is explicit and incomplete', () => {
+  const infoPrefix = Array.from('INFO', (character) => character.charCodeAt(0));
+  const nestedChildren = Array.from({ length: WAV_LIMITS.maxStructures }, () => chunk('JUNK', [0])).flat();
+  const bytes = wav([
+    { id: 'fmt ', payload: fmtPayload({ bitsPerSample: 8 }) },
+    { id: 'LIST', payload: [...infoPrefix, ...nestedChildren] },
+    { id: 'data', payload: [0x01] },
+  ]);
+  const inspection = inspectWav(bytes);
+  const list = inspection.structures.find((item) => item.name === 'list');
+
+  assert.equal(inspection.status, 'limit-reached');
+  assert.equal(inspection.complete, false);
+  assert.equal(inspection.structures.length, WAV_LIMITS.maxStructures);
+  assert.ok(inspection.diagnostics.some((item) => item.code === 'limit_reached'));
+  assert.ok(list);
+  assert.ok(inspection.structures.slice(0, 4).every((item) => item.id === 'wav-riff' || item.parentId === 'wav-riff' || item.parentId === list?.id));
+  assert.ok(inspection.structures.some((item) => item.diagnosticCodes?.includes('limit_reached')));
+  assertPublicSpans(bytes, inspection);
 });
 
 test('odd chunk sizes consume padding as an Unmapped span without a false error', () => {

@@ -11,6 +11,11 @@ import {
   GENERIC_DIAGNOSTIC_CODES,
   INSPECTION_LIMITS,
 } from './inspection.ts';
+import {
+  canReadBytes as canRead,
+  readAscii as ascii,
+  readBytes as bytesOf,
+} from './bounded-bytes.ts';
 
 export const PNG_SIGNATURE = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
 
@@ -24,7 +29,7 @@ export const PNG_LIMITS = Object.freeze({
 /** Stable public Diagnostic identities and their byte-span policy. */
 export const PNG_DIAGNOSTIC_CODES = Object.freeze({
   unsupportedFormat: GENERIC_DIAGNOSTIC_CODES.unsupportedFormat,
-  extensionMismatch: GENERIC_DIAGNOSTIC_CODES.extensionMismatch,
+  formatNameMismatch: GENERIC_DIAGNOSTIC_CODES.formatNameMismatch,
   limitReached: GENERIC_DIAGNOSTIC_CODES.limitReached,
   parseAborted: GENERIC_DIAGNOSTIC_CODES.parseAborted,
   truncatedChunk: 'truncated_chunk',
@@ -72,7 +77,19 @@ export interface PngInspectionMetadata {
   signal?: AbortSignal;
 }
 
-const KNOWN_TYPES = new Set(['IHDR', 'PLTE', 'IDAT', 'IEND', 'tEXt', 'iTXt', 'gAMA', 'sRGB', 'tRNS', 'pHYs']);
+/** One source of truth for typed PNG Structures in both parser and UI. */
+export const PNG_TYPED_CHUNK_TYPES: ReadonlySet<string> = new Set([
+  'IHDR',
+  'PLTE',
+  'IDAT',
+  'IEND',
+  'tEXt',
+  'iTXt',
+  'gAMA',
+  'sRGB',
+  'tRNS',
+  'pHYs',
+]);
 const PNG_CHUNK_TYPE_LENGTH = 4;
 const PNG_CHUNK_HEADER_LENGTH = 8;
 const PNG_CHUNK_TRAILER_LENGTH = 4;
@@ -91,25 +108,6 @@ interface ParseContext {
 
 function span(offset: number, length: number): ByteSpan {
   return { offset, length };
-}
-
-function canRead(bytes: Uint8Array, offset: number, length: number): boolean {
-  return Number.isSafeInteger(offset) && Number.isSafeInteger(length) && offset >= 0 && length >= 0 && offset <= bytes.length - length;
-}
-
-function bytesOf(bytes: Uint8Array, target: ByteSpan): number[] {
-  return canRead(bytes, target.offset, target.length) ? Array.from(bytes.slice(target.offset, target.offset + target.length)) : [];
-}
-
-function ascii(bytes: Uint8Array, target: ByteSpan): string {
-  // Chunked conversion avoids the argument-stack limit for hostile text while
-  // preserving exact conversion for fixed-size identifiers.
-  const values = bytesOf(bytes, target);
-  let result = '';
-  for (let index = 0; index < values.length; index += 4096) {
-    result += String.fromCharCode(...values.slice(index, index + 4096));
-  }
-  return result;
 }
 
 function latin1(bytes: Uint8Array, target: ByteSpan): string {
@@ -144,7 +142,7 @@ function crc32(bytes: Uint8Array, typeOffset: number, dataOffset: number, dataLe
   return (crc ^ 0xffffffff) >>> 0;
 }
 
-function extensionOf(sourceName: string): string | undefined {
+function sourceNameSuffix(sourceName: string): string | undefined {
   const match = sourceName.match(/\.([^.\\/]+)$/);
   return match?.[1]?.toLowerCase();
 }
@@ -432,7 +430,10 @@ function parseChunkData(
       6: [8, 16],
     };
     const valid = width > 0 && height > 0 && validColorType && validDepthByColor[colorType]?.includes(bitDepth) && compression === 0 && filter === 0 && (interlace === 0 || interlace === 1);
-    if (!valid) addDiagnostic(PNG_DIAGNOSTIC_CODES.invalidIhdr, 'error', 'IHDR contains an unsupported or inconsistent image format value.', span(dataStart, 13));
+    if (!valid) {
+      fields.slice(-7).forEach((item) => { item.status = 'invalid'; });
+      addDiagnostic(PNG_DIAGNOSTIC_CODES.invalidIhdr, 'error', 'IHDR contains an unsupported or inconsistent image format value.', span(dataStart, 13));
+    }
     return undefined;
   }
 
@@ -519,7 +520,7 @@ function parseChunkData(
     return undefined;
   }
 
-  if (!KNOWN_TYPES.has(type)) {
+  if (!PNG_TYPED_CHUNK_TYPES.has(type)) {
     addDiagnostic(PNG_DIAGNOSTIC_CODES.unsupportedChunk, 'note', `${type || 'Unknown'} is retained as a generic opaque chunk.`, span(offset, length + 12));
     if (length === 0) {
       const emptyPayload = makePayload(structureId, dataStart, 0, 'Opaque Payload', 'HexLens identifies this chunk but it carries no bytes to interpret.');
@@ -644,10 +645,10 @@ export function inspectPng(input: Uint8Array, sourceName = 'hexlens-sample.png',
     return baseInspection(bytes, sourceName, structures, diagnostics, false, 'limit-reached', 'limit-reached');
   }
 
-  const extension = extensionOf(sourceName);
-  if (extension && extension !== 'png') addDiagnostic(PNG_DIAGNOSTIC_CODES.extensionMismatch, 'note', 'The filename extension does not match the PNG signature. Content determined this Format.', span(0, PNG_SIGNATURE.length));
+  const suffix = sourceNameSuffix(sourceName);
+  if (suffix && suffix !== 'png') addDiagnostic(PNG_DIAGNOSTIC_CODES.formatNameMismatch, 'note', 'The source name suffix does not match the PNG signature. Content determined this Format.', span(0, PNG_SIGNATURE.length));
   // MIME is supporting evidence only. It never chooses this parser and is not
-  // promoted to a misleading extension Diagnostic in the public result.
+  // promoted to a misleading source-name Diagnostic in the public result.
   void metadata.mimeType;
 
   const context: ParseContext = { seenIhdr: false, seenPlte: false, seenIdat: false, idatClosed: false, seenIend: false, paletteEntries: 0, occurrences: new Map() };

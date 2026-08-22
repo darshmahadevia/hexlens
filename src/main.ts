@@ -1,5 +1,5 @@
 import './styles.css';
-import type { ByteSpan, FormatId, Inspection } from './domain/inspection.ts';
+import type { ByteSpan, Field, FormatId, Inspection } from './domain/inspection.ts';
 import {
   BYTES_PER_ROW,
   asciiLabel,
@@ -20,8 +20,8 @@ import {
   type SelectionResolution,
 } from './domain/byte-grid.ts';
 import { spanIntersects, spanLabel } from './domain/inspection.ts';
-import { createRawInspection, detectFormat, INSPECTION_LIMITS, inspectDetected } from './format.ts';
-import { FileJobController, FILE_JOB_LIMITS, type FileJobParseResult } from './file-session.ts';
+import { createRawInspection, INSPECTION_LIMITS, PNG_TYPED_CHUNK_TYPES } from './format.ts';
+import { LocalFileFlow } from './local-file-flow.ts';
 import { sampleInspection, PNG_SAMPLE_BASE64, wavSampleInspection, WAV_SAMPLE_BASE64 } from './sample.ts';
 
 const app = document.querySelector<HTMLDivElement>('#app');
@@ -34,7 +34,6 @@ const wavSample = wavSampleInspection();
 const GRID_ROW_HEIGHT = 48;
 const GRID_OVERSCAN = 5;
 const MAX_LOCAL_FILE_BYTES = INSPECTION_LIMITS.maxBytes;
-const PNG_TYPED_CHUNKS = new Set(['IHDR', 'PLTE', 'IDAT', 'IEND', 'tEXt', 'iTXt', 'gAMA', 'sRGB', 'tRNS', 'pHYs']);
 const SELECTION_ANNOUNCEMENT_DELAY = 180;
 
 type View = 'landing' | 'inspect';
@@ -120,10 +119,22 @@ function formatValue(value: string | number): string {
   return typeof value === 'number' ? value.toLocaleString('en-US') : value;
 }
 
+function fieldStatusLabel(field: Field): string {
+  if (field.status === 'absent') return 'Absent';
+  if (field.status === 'opaque') return 'Opaque Payload';
+  if (field.status === 'invalid') return 'Invalid value';
+  return 'Interpreted';
+}
+
+function fieldDisplayValue(field: Field): string {
+  if (field.status === 'opaque' || field.status === 'invalid') return `${fieldStatusLabel(field)} · ${formatValue(field.value)}`;
+  return field.status === 'absent' ? fieldStatusLabel(field) : formatValue(field.value);
+}
+
 function formatLabel(format: FormatId): string {
   if (format === 'wav') return 'WAV';
   if (format === 'png') return 'PNG';
-  return 'unknown Format';
+  return 'raw-byte Inspection';
 }
 
 function sourceDataUrl(format: FormatId): string {
@@ -190,83 +201,75 @@ function initialSelection(inspection: Inspection): ByteSpan {
   return firstField ? { ...firstField } : first ? { ...first } : { offset: 0, length: Math.min(8, inspection.bytes.length) };
 }
 
-type LocalParseResult = FileJobParseResult<Inspection>;
-
-const fileJobs = new FileJobController<Inspection>(undefined, async (bytes, file, signal): Promise<LocalParseResult> => {
-  const detected = detectFormat(bytes);
-  if (detected !== 'png' && detected !== 'wav') return { accepted: false, rejection: { code: bytes.length > MAX_LOCAL_FILE_BYTES ? 'limit_reached' : 'unsupported_format' } };
-  const inspection = inspectDetected(bytes, file.name, { mimeType: file.type, signal });
-  return { accepted: true, value: inspection };
-});
+const fileFlow = new LocalFileFlow();
 
 function startFileJob(file: File, origin: View): void {
   if (isNarrowViewport()) return;
-  if (file.size > MAX_LOCAL_FILE_BYTES) {
-    setNotice('error', rejectionMessage('limit_reached'), origin);
-    return;
-  }
 
   operation = { phase: 'reading', origin };
-  const jobId = fileJobs.start(file, {
-    onPhase: (phase, callbackJobId) => {
-      if (!fileJobs.isActive(callbackJobId)) return;
-      operation = { phase, origin, jobId: callbackJobId };
+  const jobId = fileFlow.start(file, origin, {
+    onOversize: (callbackOrigin) => {
+      setNotice('error', rejectionMessage('limit_reached'), callbackOrigin);
+    },
+    onPhase: (phase, callbackJobId, callbackOrigin) => {
+      if (!fileFlow.isActive(callbackJobId)) return;
+      operation = { phase, origin: callbackOrigin, jobId: callbackJobId };
       render();
     },
-    onSlow: (callbackJobId) => {
-      if (!fileJobs.isActive(callbackJobId)) return;
-      operation = { phase: 'slow', origin, jobId: callbackJobId };
+    onSlow: (callbackJobId, callbackOrigin) => {
+      if (!fileFlow.isActive(callbackJobId)) return;
+      operation = { phase: 'slow', origin: callbackOrigin, jobId: callbackJobId };
       render();
-      publishImmediateAnnouncement(`Local opening is taking longer than ${FILE_JOB_LIMITS.slowNoticeMs / 1000} seconds. Abort remains available.`);
+      publishImmediateAnnouncement(`Local opening is taking longer than ${LocalFileFlow.limits.slowNoticeMs / 1000} seconds. Abort remains available.`);
     },
-    onAborted: (callbackJobId) => {
-      operation = { phase: 'aborted', origin, jobId: callbackJobId, notice: { kind: 'info', message: 'Opening was aborted. Your current Inspection is still open.' } };
+    onAborted: (callbackJobId, callbackOrigin) => {
+      operation = { phase: 'aborted', origin: callbackOrigin, jobId: callbackJobId, notice: { kind: 'info', message: 'Opening was aborted. Your current Inspection is still open.' } };
       render();
       publishImmediateAnnouncement('Opening was aborted. Your current Inspection is still open.');
     },
-    onTerminated: (callbackJobId) => {
+    onTerminated: (callbackJobId, callbackOrigin) => {
       if (operation.jobId !== callbackJobId || operation.phase !== 'aborted') return;
-      operation = { phase: 'ready', origin, notice: { kind: 'info', message: 'The local parser did not stop immediately; its stale result was discarded safely.' } };
+      operation = { phase: 'ready', origin: callbackOrigin, notice: { kind: 'info', message: 'The local parser did not stop immediately; its stale result was discarded safely.' } };
       render();
       publishImmediateAnnouncement('The local parser did not stop immediately; its stale result was discarded safely.');
     },
-    onAccepted: (inspection, acceptedFile, callbackJobId) => {
-      if (!fileJobs.isActive(callbackJobId)) return;
+    onAccepted: (inspection, acceptedFile, callbackJobId, callbackOrigin) => {
+      if (!fileFlow.isActive(callbackJobId)) return;
       const previous = session;
       session = { kind: 'local', inspection, previewUrl: undefined };
       ensurePreview(session);
       view = 'inspect';
-      if (origin === 'landing') window.history.pushState(null, '', routeHref('/inspect'));
+      if (callbackOrigin === 'landing') window.history.pushState(null, '', routeHref('/inspect'));
       else window.history.replaceState(null, '', routeHref('/inspect'));
       const status = inspection.status ?? (inspection.state === 'ready' ? 'ready' : 'partial');
       const message = status === 'unsupported'
-        ? 'Unsupported Format. Raw bytes remain available; no semantic claims were made.'
+        ? inspection.diagnostics[0]?.message ?? 'The file does not match a supported Format. Raw bytes remain available without semantic parsing.'
         : status === 'limit-reached'
           ? 'The local safety limit stopped parsing. The Inspection is explicitly incomplete.'
           : status === 'aborted'
             ? 'Opening was aborted before semantic output was complete.'
             : `Opened a local ${formatLabel(inspection.format)}. File data remains in memory only.`;
-      operation = { phase: 'ready', origin: 'inspect', jobId: callbackJobId, notice: { kind: status === 'ready' ? 'success' : 'info', message } };
+      operation = { phase: 'ready', origin: 'inspect', jobId: callbackJobId, notice: { kind: status === 'ready' ? 'success' : status === 'unsupported' ? 'error' : 'info', message } };
       render();
       publishImmediateAnnouncement(message);
       revokePreview(previous);
     },
-    onRejected: (rejection, _rejectedFile, callbackJobId) => {
-      if (!fileJobs.isActive(callbackJobId)) return;
+    onRejected: (rejection, _rejectedFile, callbackJobId, callbackOrigin) => {
+      if (!fileFlow.isActive(callbackJobId)) return;
       const message = rejection.code === 'unsupported_format'
         ? 'Unsupported Format. The file does not have a PNG signature or RIFF/WAVE signature; your current Inspection is still open.'
         : rejectionMessage(rejection.code);
       operation = {
         phase: rejection.code === 'unsupported_format' ? 'unsupported' : 'limit-reached',
-        origin,
+        origin: callbackOrigin,
         jobId: callbackJobId,
         notice: { kind: 'error', message },
       };
       render();
       publishImmediateAnnouncement(message);
     },
-    onError: (callbackJobId, failedFile, failedBytes) => {
-      if (!fileJobs.isActive(callbackJobId)) return;
+    onError: (callbackJobId, failedFile, failedBytes, callbackOrigin) => {
+      if (!fileFlow.isActive(callbackJobId)) return;
       if (failedBytes && failedBytes.length <= MAX_LOCAL_FILE_BYTES && failedFile) {
         const previous = session;
         session = {
@@ -275,14 +278,14 @@ function startFileJob(file: File, origin: View): void {
           previewUrl: undefined,
         };
         view = 'inspect';
-        if (origin === 'landing') window.history.pushState(null, '', routeHref('/inspect'));
+        if (callbackOrigin === 'landing') window.history.pushState(null, '', routeHref('/inspect'));
         else window.history.replaceState(null, '', routeHref('/inspect'));
         operation = { phase: 'ready', origin: 'inspect', jobId: callbackJobId, notice: { kind: 'error', message: 'The application could not complete semantic parsing. The raw-byte fallback is bounded; no semantic output was published.' } };
         render();
         publishImmediateAnnouncement('The application could not complete semantic parsing. The raw-byte fallback is bounded; no semantic output was published.');
         revokePreview(previous);
       } else {
-        operation = { phase: 'application-error', origin, jobId: callbackJobId, notice: { kind: 'error', message: 'The application could not complete parsing. Semantic output was discarded and no raw-byte fallback was retained.' } };
+        operation = { phase: 'application-error', origin: callbackOrigin, jobId: callbackJobId, notice: { kind: 'error', message: 'The application could not complete parsing. Semantic output was discarded and no raw-byte fallback was retained.' } };
         render();
         publishImmediateAnnouncement('The application could not complete parsing. Semantic output was discarded and no raw-byte fallback was retained.');
       }
@@ -293,7 +296,7 @@ function startFileJob(file: File, origin: View): void {
 }
 
 function cancelFileJob(): void {
-  const canceled = fileJobs.cancel();
+  const canceled = fileFlow.cancel();
   if (canceled === undefined) return;
 }
 
@@ -388,12 +391,17 @@ function renderNotice(): string {
   return `<p class="file-feedback file-feedback-${operation.notice.kind}" data-testid="file-feedback" role="${operation.notice.kind === 'error' ? 'alert' : 'status'}">${escapeHtml(operation.notice.message)}</p>`;
 }
 
+function renderRecoveryActions(inspection: Inspection): string {
+  if (inspection.status !== 'unsupported' && inspection.status !== 'application-error') return '';
+  return `<div class="recovery-actions" data-testid="recovery-actions"><span>Recovery</span><a class="button button-secondary" href="${routeHref('/inspect?sample=png')}">Try PNG Sample</a><a class="button button-secondary" href="${routeHref('/inspect?sample=wav')}">Try WAV Sample</a></div>`;
+}
+
 function operationLabel(inspection?: Inspection): string {
   if (operation.phase === 'reading') return 'Reading local file…';
   if (operation.phase === 'parsing') return 'Parsing locally…';
-  if (operation.phase === 'slow') return `Working locally… this is taking longer than ${FILE_JOB_LIMITS.slowNoticeMs / 1000} seconds`;
+  if (operation.phase === 'slow') return `Working locally… this is taking longer than ${LocalFileFlow.limits.slowNoticeMs / 1000} seconds`;
   if (operation.phase === 'aborted') return 'Opening aborted · current Inspection preserved';
-  if (operation.phase === 'unsupported') return 'Unsupported Format · current Inspection preserved';
+  if (operation.phase === 'unsupported') return 'Unsupported Format · current Inspection preserved · raw bytes available';
   if (operation.phase === 'limit-reached') return 'Limit reached · current Inspection preserved';
   if (operation.phase === 'application-error') return 'Application error · semantic output discarded';
   if (!inspection) return 'Ready for one local PNG or WAV file';
@@ -458,7 +466,7 @@ function renderByteStrip(inspection: Inspection, selection?: ByteSpan, interacti
 function renderStructureLabels(inspection: Inspection, selection?: ByteSpan, interactive = false, dataPrefix = ''): string {
   return inspection.structures.map((structure) => {
     const active = selection ? spanIntersects(structure.span, selection) : false;
-    const tag = structure.type !== undefined && !PNG_TYPED_CHUNKS.has(structure.type)
+    const tag = structure.type !== undefined && !PNG_TYPED_CHUNK_TYPES.has(structure.type)
       ? 'Unknown chunk'
       : structure.kind === 'payload' ? 'Payload' : structure.kind === 'header' ? 'Header' : 'Structure';
     const content = `<span class="structure-index">${spanLabel(structure.span)}</span><span class="structure-copy"><strong>${escapeHtml(structure.label)}</strong><small>${tag} · ${structure.span.length} bytes</small></span>`;
@@ -826,7 +834,7 @@ function renderSemanticDetail(inspection: Inspection, resolution: SelectionResol
       ${intersecting}
       <dl class="field-facts">
         <div><dt>Byte span</dt><dd>${spanLabel(resolution.selection)} <span>(offset ${resolution.selection.offset}, ${resolution.selection.length} bytes)</span></dd></div>
-        ${resolution.field ? `<div><dt>Encoded</dt><dd class="mono">${resolution.field.encodedBytes.map(formatByte).join(' ')} <button class="inline-copy" type="button" data-copy-kind="field-bytes" data-field-id="${escapeHtml(resolution.field.id)}">Copy</button></dd></div><div><dt>Interpreted</dt><dd>${escapeHtml(formatValue(resolution.field.value))} <button class="inline-copy" type="button" data-copy-kind="field-value" data-field-id="${escapeHtml(resolution.field.id)}">Copy</button></dd></div><div><dt>Representation</dt><dd>${escapeHtml(resolution.field.representation)}${resolution.field.endianness && resolution.field.endianness !== 'n/a' ? ` · ${resolution.field.endianness}` : ''}</dd></div><div><dt>Offset</dt><dd class="mono">0x${formatOffset(resolution.field.span.offset, inspection.bytes.length)} / ${formatDecimalOffset(resolution.field.span.offset)} <button class="inline-copy" type="button" data-copy-kind="field-offset" data-field-id="${escapeHtml(resolution.field.id)}">Copy</button></dd></div>` : `<div><dt>Ownership</dt><dd>${escapeHtml(resolution.unmapped ? 'Unmapped span' : 'Structure span')}</dd></div>`}
+        ${resolution.field ? `<div><dt>Encoded</dt><dd class="mono">${resolution.field.encodedBytes.map(formatByte).join(' ')} <button class="inline-copy" type="button" data-copy-kind="field-bytes" data-field-id="${escapeHtml(resolution.field.id)}">Copy</button></dd></div><div><dt>${fieldStatusLabel(resolution.field)}</dt><dd>${escapeHtml(fieldDisplayValue(resolution.field))} <button class="inline-copy" type="button" data-copy-kind="field-value" data-field-id="${escapeHtml(resolution.field.id)}">Copy</button></dd></div><div><dt>Representation</dt><dd>${escapeHtml(resolution.field.representation)}${resolution.field.endianness && resolution.field.endianness !== 'n/a' ? ` · ${resolution.field.endianness}` : ''}</dd></div><div><dt>Offset</dt><dd class="mono">0x${formatOffset(resolution.field.span.offset, inspection.bytes.length)} / ${formatDecimalOffset(resolution.field.span.offset)} <button class="inline-copy" type="button" data-copy-kind="field-offset" data-field-id="${escapeHtml(resolution.field.id)}">Copy</button></dd></div>` : `<div><dt>Ownership</dt><dd>${escapeHtml(resolution.unmapped ? 'Unmapped span' : 'Structure span')}</dd></div>`}
       </dl>
       ${bitDetails}${derivedDetails}${unmappedDetails}${diagnosticDetails}
     </div>`;
@@ -836,8 +844,9 @@ function renderFieldInspector(inspection: Inspection, resolution: SelectionResol
   const structure = resolution.structure ?? inspection.structures[0];
   const fields = structure?.fields.map((field) => {
     const active = resolution.field?.id === field.id || resolution.intersectingFields.some((item) => item.id === field.id);
-    const accessibleLabel = `${field.label}, Field, bytes ${spanLabel(field.span)}${active ? ', selected' : ''}`;
-    return `<button class="field-row${active ? ' is-selected' : ''}" type="button" data-field-id="${escapeHtml(field.id)}" aria-label="${escapeHtml(accessibleLabel)}" aria-controls="selection-summary byte-grid" aria-pressed="${active}" aria-keyshortcuts="Enter Space ArrowDown ArrowUp"> <span class="field-label"><strong>${escapeHtml(field.label)}</strong><small>${spanLabel(field.span)} · ${field.span.length} bytes</small></span><span class="field-value">${escapeHtml(formatValue(field.value))}</span></button>`;
+    const statusLabel = fieldStatusLabel(field);
+    const accessibleLabel = `${field.label}, ${statusLabel} Field, bytes ${spanLabel(field.span)}${active ? ', selected' : ''}`;
+    return `<button class="field-row${active ? ' is-selected' : ''}" type="button" data-field-id="${escapeHtml(field.id)}" aria-label="${escapeHtml(accessibleLabel)}" aria-controls="selection-summary byte-grid" aria-pressed="${active}" aria-keyshortcuts="Enter Space ArrowDown ArrowUp"> <span class="field-label"><strong>${escapeHtml(field.label)}</strong><small>${spanLabel(field.span)} · ${field.span.length} bytes · ${statusLabel}</small></span><span class="field-value field-value-${statusLabel.toLowerCase().replace(/\s+/g, '-')}">${escapeHtml(fieldDisplayValue(field))}</span></button>`;
   }).join('') ?? '';
   const heading = structure
     ? `<div class="field-structure-heading"><span class="plate-index">${spanLabel(structure.span)}</span><div><strong>${escapeHtml(structure.label)}</strong><small>${escapeHtml(structure.description)}</small></div></div>`
@@ -951,6 +960,7 @@ function renderInspector(target: InspectionSession, requestedSelection?: ByteSpa
         ${renderStatus(inspection)}
         ${narrow ? '<p class="narrow-sample-note">Bundled Sample · phone view keeps the inspection focused on Structures, bytes, and Fields.</p>' : '<div class="inspector-ingress"><div><strong>Open another local file</strong><span>Choose one PNG or WAV file, or drop it anywhere on this workbench.</span></div>' + renderFileIngress() + '</div>'}
         ${renderNotice()}
+        ${renderRecoveryActions(inspection)}
         ${renderDiagnostics(inspection)}
 
         ${narrow ? renderNarrowSelectionSummary(inspection, selection, selectedSummary, focusSemanticAction) + renderNarrowInspectorLayout(inspection, selection, resolution, activeNarrowTab, target.previewUrl, target.previewFailed) : `<div class="inspector-layout">
@@ -1183,7 +1193,7 @@ mount.addEventListener('drop', handleDrop);
 function renderRoute(): void {
   view = currentView();
   if (view === 'landing') {
-    fileJobs.cancel();
+    fileFlow.cancel();
     operation = { phase: 'ready', origin: 'landing' };
     render();
     return;
@@ -1191,7 +1201,7 @@ function renderRoute(): void {
 
   const params = new URLSearchParams(window.location.search);
   if (params.get('sample') === 'png' || params.get('sample') === 'wav') {
-    fileJobs.cancel();
+    fileFlow.cancel();
     revokePreview(session);
     session = sampleSession(params.get('sample') === 'wav' ? wavSample : sample);
     operation = { phase: 'ready', origin: 'inspect' };

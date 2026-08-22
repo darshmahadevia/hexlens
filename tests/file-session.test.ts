@@ -53,3 +53,37 @@ test('cancel acknowledges without publishing a read failure', async () => {
   assert.deepEqual(rejected, []);
   assert.equal(controller.activeJobId, undefined);
 });
+
+test('cancel escalates to parser termination after the bounded deadline', async () => {
+  let cancelCalls = 0;
+  let terminateCalls = 0;
+  const parser = Object.assign(
+    async () => new Promise<{ accepted: true; value: string }>(() => undefined),
+    {
+      cancelJob: () => { cancelCalls += 1; },
+      terminateJob: () => { terminateCalls += 1; },
+    },
+  );
+  const controller = new FileJobController<string>(
+    async () => Uint8Array.from([1]).buffer,
+    parser,
+    async () => undefined,
+    { slowNoticeMs: 5, terminationDeadlineMs: 5 },
+  );
+  const events: string[] = [];
+  controller.start(new File([Uint8Array.from([1])], 'hung.png'), {
+    onPhase: () => undefined,
+    onAccepted: () => events.push('accepted'),
+    onRejected: () => events.push('rejected'),
+    onAborted: () => events.push('aborted'),
+    onTerminated: () => events.push('terminated'),
+    onError: () => events.push('error'),
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  controller.cancel();
+  await new Promise((resolve) => setTimeout(resolve, 12));
+  assert.equal(cancelCalls, 1);
+  assert.equal(terminateCalls, 1);
+  assert.deepEqual(events, ['aborted', 'terminated']);
+});
