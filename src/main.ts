@@ -24,6 +24,10 @@ import { createRawInspection, INSPECTION_LIMITS } from './format.ts';
 import { LocalFileFlow } from './local-file-flow.ts';
 import { renderFieldInspector } from './field-inspector.ts';
 import { renderStructureTree } from './structure-tree.ts';
+import { createRouter, type View } from './routing.ts';
+import { VirtualByteGrid, type GridFocusTarget } from './byte-grid-view.ts';
+import { activateNarrowTab, renderNarrowTabs, type NarrowTab } from './narrow-navigation.ts';
+import { renderLanding } from './landing-view.ts';
 import { sampleInspection, PNG_SAMPLE_BASE64, wavSampleInspection, WAV_SAMPLE_BASE64 } from './sample.ts';
 
 const app = document.querySelector<HTMLDivElement>('#app');
@@ -38,7 +42,6 @@ const GRID_OVERSCAN = 5;
 const MAX_LOCAL_FILE_BYTES = INSPECTION_LIMITS.maxBytes;
 const SELECTION_ANNOUNCEMENT_DELAY = 180;
 
-type View = 'landing' | 'inspect';
 type SessionKind = 'sample' | 'local';
 type NoticeKind = 'info' | 'success' | 'error';
 
@@ -63,27 +66,26 @@ interface InspectionSession {
   narrowTab?: NarrowTab;
 }
 
-type NarrowTab = 'structures' | 'bytes' | 'fields';
-
-const BASE_PATH = import.meta.env.BASE_URL === '/' ? '' : import.meta.env.BASE_URL.replace(/\/$/, '');
-
-function routeHref(route: '/' | '/inspect' | `/inspect?sample=${'png' | 'wav'}`): string {
-  return `${BASE_PATH}${route}`;
-}
-
-function routePathname(pathname: string): string {
-  if (!BASE_PATH) return pathname;
-  if (pathname === BASE_PATH) return '/';
-  return pathname.startsWith(`${BASE_PATH}/`) ? pathname.slice(BASE_PATH.length) : pathname;
-}
-
-const currentView = (): View => routePathname(window.location.pathname) === '/inspect' ? 'inspect' : 'landing';
-let view: View = currentView();
+const router = createRouter(import.meta.env.BASE_URL);
+let view: View = router.currentView();
 let session: InspectionSession | null = null;
 let operation: OperationState = { phase: 'ready', origin: view };
 let dragDepth = 0;
 let enumerateRawBytes = false;
 let landingSelection: ByteSpan = initialSelection(sample);
+const landingViewOptions = {
+  mount,
+  sample,
+  getSelection: () => landingSelection,
+  setSelection: (selection: ByteSpan) => { landingSelection = selection; },
+  isNarrow: isNarrowViewport,
+  routeHref: router.href,
+  renderFileIngress: (disabled?: boolean) => renderFileIngress(disabled),
+  renderNotice: () => renderNotice(),
+  operationPhase: () => operation.phase,
+  operationLabel: () => operationLabel(),
+  sourceDataUrl,
+};
 let selectionAnnouncementTimer: ReturnType<typeof setTimeout> | undefined;
 let selectionAnnouncementSequence = 0;
 let lastNarrowViewport = isNarrowViewport();
@@ -152,12 +154,12 @@ function renderEmptyInspector(): void {
         <div class="registration registration-top-left" aria-hidden="true"></div>
         <div class="registration registration-top-right" aria-hidden="true"></div>
         <header class="inspector-toolbar" aria-label="Inspection toolbar">
-          <a href="${routeHref('/')}" class="back-link">← Back to landing</a>
+          <a href="${router.href('/')}" class="back-link">← Back to landing</a>
           <div class="toolbar-title"><span class="wordmark wordmark-small">HexLens</span><span class="toolbar-divider" aria-hidden="true"></span><h1 id="inspector-title">Open an Inspection</h1></div>
           <div class="file-identity"><strong>No file selected</strong><span>${narrow ? 'Bundled PNG or WAV Sample' : 'Local PNG or WAV'}</span></div>
         </header>
         ${renderStatus()}
-        <div class="empty-inspector-content"><span class="plate-mark">${narrow ? 'Sample Inspection' : 'One file, one Inspection'}</span><h2>${narrow ? 'Choose a Sample to begin.' : 'Bring a PNG or WAV to the workbench.'}</h2><p>${narrow ? 'Phone view is reserved for the bundled PNG and WAV Samples. Choose one to explore its Structures, bytes, and Fields.' : 'Choose one local PNG or WAV, or drop it here. HexLens checks the bytes on this device and keeps the current file in memory only.'}</p>${narrow ? `<div class="sample-links" aria-label="Sample files"><a class="button button-primary" href="${routeHref('/inspect?sample=png')}">Open PNG Sample</a><a class="button button-secondary" href="${routeHref('/inspect?sample=wav')}">Open WAV Sample</a></div>` : `${renderFileIngress()}<p class="drop-hint">Drop one PNG or WAV file · directories and multiple files are not accepted.</p>`}${renderNotice()}</div>
+        <div class="empty-inspector-content"><span class="plate-mark">${narrow ? 'Sample Inspection' : 'One file, one Inspection'}</span><h2>${narrow ? 'Choose a Sample to begin.' : 'Bring a PNG or WAV to the workbench.'}</h2><p>${narrow ? 'Phone view is reserved for the bundled PNG and WAV Samples. Choose one to explore its Structures, bytes, and Fields.' : 'Choose one local PNG or WAV, or drop it here. HexLens checks the bytes on this device and keeps the current file in memory only.'}</p>${narrow ? `<div class="sample-links" aria-label="Sample files"><a class="button button-primary" href="${router.href('/inspect?sample=png')}">Open PNG Sample</a><a class="button button-secondary" href="${router.href('/inspect?sample=wav')}">Open WAV Sample</a></div>` : `${renderFileIngress()}<p class="drop-hint">Drop one PNG or WAV file · directories and multiple files are not accepted.</p>`}${renderNotice()}</div>
       </section>
     </main>
   `;
@@ -166,7 +168,7 @@ function renderEmptyInspector(): void {
 function render(): void {
   if (view === 'landing') {
     if (session?.kind === 'local') revokePreview(session);
-    renderLanding();
+    renderLanding(landingViewOptions);
     return;
   }
   if (session) renderInspector(session);
@@ -229,8 +231,8 @@ function startFileJob(file: File, origin: View): void {
       session = { kind: 'local', inspection, previewUrl: undefined };
       ensurePreview(session);
       view = 'inspect';
-      if (callbackOrigin === 'landing') window.history.pushState(null, '', routeHref('/inspect'));
-      else window.history.replaceState(null, '', routeHref('/inspect'));
+      if (callbackOrigin === 'landing') window.history.pushState(null, '', router.href('/inspect'));
+      else window.history.replaceState(null, '', router.href('/inspect'));
       const status = inspection.status ?? (inspection.state === 'ready' ? 'ready' : 'partial');
       const message = status === 'unsupported'
         ? inspection.diagnostics[0]?.message ?? 'The file does not match a supported Format. Raw bytes remain available without semantic parsing.'
@@ -268,8 +270,8 @@ function startFileJob(file: File, origin: View): void {
           previewUrl: undefined,
         };
         view = 'inspect';
-        if (callbackOrigin === 'landing') window.history.pushState(null, '', routeHref('/inspect'));
-        else window.history.replaceState(null, '', routeHref('/inspect'));
+        if (callbackOrigin === 'landing') window.history.pushState(null, '', router.href('/inspect'));
+        else window.history.replaceState(null, '', router.href('/inspect'));
         operation = { phase: 'ready', origin: 'inspect', jobId: callbackJobId, notice: { kind: 'error', message: 'The application could not complete semantic parsing. The raw-byte fallback is bounded; no semantic output was published.' } };
         render();
         publishImmediateAnnouncement('The application could not complete semantic parsing. The raw-byte fallback is bounded; no semantic output was published.');
@@ -383,7 +385,7 @@ function renderNotice(): string {
 
 function renderRecoveryActions(inspection: Inspection): string {
   if (inspection.status !== 'unsupported' && inspection.status !== 'application-error') return '';
-  return `<div class="recovery-actions" data-testid="recovery-actions"><span>Recovery</span><a class="button button-secondary" href="${routeHref('/inspect?sample=png')}">Try PNG Sample</a><a class="button button-secondary" href="${routeHref('/inspect?sample=wav')}">Try WAV Sample</a></div>`;
+  return `<div class="recovery-actions" data-testid="recovery-actions"><span>Recovery</span><a class="button button-secondary" href="${router.href('/inspect?sample=png')}">Try PNG Sample</a><a class="button button-secondary" href="${router.href('/inspect?sample=wav')}">Try WAV Sample</a></div>`;
 }
 
 function operationLabel(inspection?: Inspection): string {
@@ -427,370 +429,7 @@ function renderDiagnostics(inspection: Inspection): string {
   return `<section class="diagnostics" aria-labelledby="diagnostics-heading" data-testid="diagnostics"><div class="diagnostics-heading"><span id="diagnostics-heading">Diagnostics</span><span class="panel-rule" aria-hidden="true"></span></div><ul>${items}</ul>${summary}</section>`;
 }
 
-function renderByteStrip(inspection: Inspection, selection?: ByteSpan, interactive = false, dataPrefix = '', maxBytes?: number): string {
-  const visibleCount = Math.min(inspection.bytes.length, maxBytes ?? (interactive ? inspection.bytes.length : 24));
-  const visibleBytes = inspection.bytes.slice(0, visibleCount);
-  const limitNote = visibleCount < inspection.bytes.length ? `<span class="plate-caption">first ${visibleCount} bytes</span>` : '';
-  const rows = [];
-  for (let start = 0; start < visibleBytes.length; start += BYTES_PER_ROW) {
-    const rowEnd = Math.min(start + BYTES_PER_ROW, visibleBytes.length);
-    const selectedStart = selection ? Math.max(start, selection.offset) : start;
-    const selectedEnd = selection ? Math.min(rowEnd, selection.offset + selection.length) : start;
-    const selectedLength = Math.max(0, selectedEnd - selectedStart);
-    const bracket = selectedLength > 0
-      ? `<span class="span-bracket" style="--selection-start: ${selectedStart - start}; --selection-length: ${selectedLength}" aria-hidden="true"></span>`
-      : '';
-    const cells = Array.from(visibleBytes.slice(start, start + BYTES_PER_ROW), (value, index) => {
-      const offset = start + index;
-      const isSelected = selection ? offset >= selection.offset && offset < selection.offset + selection.length : false;
-      const label = `${formatByte(value)} at offset ${formatOffset(offset, inspection.bytes.length)}; ${asciiLabel(value)}`;
-      return interactive
-        ? `<button class="byte-cell${isSelected ? ' is-selected' : ''}" type="button" data-${dataPrefix}byte-offset="${offset}" aria-label="${escapeHtml(label)}" aria-pressed="${isSelected}">${formatByte(value)}</button>`
-        : `<span class="byte-cell${isSelected ? ' is-selected' : ''}" aria-label="${escapeHtml(label)}">${formatByte(value)}</span>`;
-    }).join('');
-    rows.push(`<div class="byte-row"><span class="byte-offset">${formatOffset(start, inspection.bytes.length)}</span><div class="byte-cells${selectedLength > 0 ? ' has-selection' : ''}">${bracket}${cells}</div><span class="ascii-gutter" aria-label="ASCII for offsets ${formatOffset(start, inspection.bytes.length)}–${formatOffset(rowEnd - 1, inspection.bytes.length)}">${Array.from(visibleBytes.slice(start, start + BYTES_PER_ROW), (value) => value >= 32 && value <= 126 ? String.fromCharCode(value) : '·').join('')}</span></div>`);
-  }
-  return `<div class="byte-strip" data-testid="byte-strip">${rows.join('')}</div>${limitNote}`;
-}
-
-function renderLandingSelectionNote(selection: ByteSpan): string {
-  const resolution = resolveSelection(sample, selection);
-  const selectedLabel = resolution.field?.label ?? resolution.structure?.label ?? resolution.unmapped?.label ?? 'Unmapped span';
-  const explanation = resolution.field?.explanation ?? resolution.structure?.description ?? resolution.unmapped?.reason ?? 'No parsed Structure or Field claims this Byte span.';
-  const value = resolution.field ? formatValue(resolution.field.value) : resolution.structure ? `${resolution.structure.span.length} bytes` : '—';
-  const encoded = resolution.field?.encodedBytes.map(formatByte).join(' ') ?? selectionHex(sample.bytes, selection);
-  return `<aside class="landing-selection-note" id="landing-selection-summary" data-testid="landing-selection-summary" aria-live="polite"><div class="selection-note-kicker">Live Selection</div><h3>${escapeHtml(selectedLabel)}</h3><p>${escapeHtml(explanation)}</p><dl><div><dt>Byte span</dt><dd>${spanLabel(selection)} · ${selection.length} bytes</dd></div><div><dt>Encoded</dt><dd class="mono">${escapeHtml(encoded)}</dd></div><div><dt>Value</dt><dd>${escapeHtml(value)}</dd></div></dl></aside>`;
-}
-
-function renderLanding(nextSelection: ByteSpan = landingSelection, focusSelector?: string): void {
-  const narrow = isNarrowViewport();
-  landingSelection = normalizeSelection(nextSelection, sample.bytes.length);
-  const ihdr = sample.structures.find((structure) => structure.type === 'IHDR') ?? sample.structures[1];
-  const widthField = ihdr?.fields.find((field) => field.name === 'width') ?? ihdr?.fields[0];
-  const ihdrSelection = ihdr?.span ?? landingSelection;
-  const ihdrFieldLabel = widthField?.label ?? 'Width';
-  const ihdrFieldValue = widthField ? formatValue(widthField.value) : '—';
-  const ihdrEncoded = widthField?.encodedBytes.map(formatByte).join(' ') ?? '—';
-
-  mount.innerHTML = `
-    <main class="app-shell landing-shell">
-      <section class="sheet-frame landing-sheet" aria-labelledby="landing-title" data-drop-target="landing">
-        <div class="registration registration-top-left" aria-hidden="true"></div>
-        <div class="registration registration-top-right" aria-hidden="true"></div>
-        <div class="masthead">
-          <a class="wordmark" href="${routeHref('/')}" aria-label="HexLens home">HexLens</a>
-          <span class="masthead-rule" aria-hidden="true"></span>
-          <span class="masthead-label">Local binary structure inspector</span>
-          <dl class="accession-meta">
-            <div><dt>Acc. no.</dt><dd>HL-2025-001</dd></div>
-            <div><dt>Catalog</dt><dd>Binary / Inspection</dd></div>
-          </dl>
-        </div>
-
-        <section class="landing-grid landing-beat landing-beat-promise" aria-labelledby="landing-title">
-          <div class="landing-copy">
-            <h1 id="landing-title"><span>Read the file.</span><span>See the structure.</span></h1>
-            <span class="short-rule" aria-hidden="true"></span>
-            <p class="lead-copy">${narrow ? 'HexLens ties each bundled Sample to the named Structures and bytes that form it.' : 'HexLens opens a binary file on your machine and ties its named Structures to the bytes that form them.'}</p>
-            <p class="support-copy">No uploads. No guesswork.<br />Just bytes, offsets, and meaning.</p>
-            <div class="landing-actions">
-              <a class="button button-primary" href="${routeHref('/inspect?sample=png')}" data-testid="try-sample">Try the sample <span aria-hidden="true">→</span></a>
-              ${renderFileIngress(narrow)}
-            </div>
-            ${narrow ? '<p class="sample-only-note">Phone view · open a bundled PNG or WAV Sample.</p>' : '<p class="drop-hint" data-testid="drop-hint">Or drop one PNG or WAV file onto this sheet.</p>'}
-            ${renderNotice()}
-            <p class="local-note"><span class="lock-mark" aria-hidden="true"><span></span></span><span><strong>100% local.</strong><br />${narrow ? 'Samples stay in your browser.' : 'Your files never leave your machine.'}</span></p>
-            ${operation.phase !== 'ready' ? `<p class="landing-operation" role="status" aria-live="polite">${operationLabel()}</p>` : ''}
-          </div>
-
-          <div class="sample-plate" aria-labelledby="sample-title" data-testid="landing-mini-inspector">
-            <div class="sample-plate-heading"><h2 id="sample-title">Sample: PNG <span>(first 24 bytes)</span></h2><span class="plate-line" aria-hidden="true"></span></div>
-            <div class="sample-offsets" aria-hidden="true"><span>Offset</span><span>00</span><span>04</span><span>08</span><span>0C</span><span>14</span><span>18</span></div>
-            ${renderByteStrip(sample, landingSelection, true, 'landing-', 24)}
-            <div class="landing-structure-map">${renderStructureTree(sample, landingSelection, true, 'landing-')}</div>
-            ${renderLandingSelectionNote(landingSelection)}
-            <figure class="source-preview-mini"><figcaption>Source preview · original-file rendering</figcaption><img src="${sourceDataUrl('png')}" alt="A one-pixel PNG Sample rendered as a tiny transparent image" /></figure>
-          </div>
-        </section>
-
-        <section class="landing-beat landing-beat-mechanism" aria-labelledby="mechanism-heading" data-testid="landing-beat-mechanism">
-          <div class="beat-intro"><span class="beat-rule" aria-hidden="true"></span><h2 id="mechanism-heading">A span is the explanation.</h2><p>One Selection keeps the semantic label, the exact bytes, and the Field note together. Click a Structure or byte above to see the same relationship move.</p></div>
-          <div class="mechanism-ledger" aria-label="PNG Selection relationship">
-            <div class="ledger-line"><span>Structure</span><strong>${escapeHtml(ihdr?.label ?? 'IHDR')}</strong><code>${spanLabel(ihdrSelection)}</code><small>${ihdrSelection.length} bytes · image header</small></div>
-            <div class="ledger-line"><span>Field note</span><strong>${escapeHtml(ihdrFieldLabel)}</strong><code>${escapeHtml(ihdrEncoded)}</code><small>interpreted value · ${escapeHtml(ihdrFieldValue)}</small></div>
-            <div class="ledger-line"><span>Source preview</span><strong>Original PNG</strong><code>not parsed output</code><small>shown as a browser rendering for reference</small></div>
-          </div>
-        </section>
-
-        <section class="landing-beat landing-beat-coverage" aria-labelledby="coverage-heading" data-testid="landing-beat-coverage">
-          <div class="beat-intro"><span class="beat-rule beat-rule-verdigris" aria-hidden="true"></span><h2 id="coverage-heading">Two Formats. One honest contract.</h2><p>HexLens ships a bounded, read-only path for the two Formats it can explain today. Payload bytes stay visible without being decoded.</p></div>
-          <dl class="coverage-ledger">
-            <div class="coverage-entry"><dt><strong>PNG</strong><span>image structure</span></dt><dd><span>Signature · IHDR · PLTE · IDAT · IEND</span><span>tEXt · iTXt · gAMA · sRGB · tRNS · pHYs</span><small>Compressed image Payload remains opaque.</small></dd></div>
-            <div class="coverage-entry"><dt><strong>WAV</strong><span>RIFF/WAVE structure</span></dt><dd><span>RIFF/WAVE · fmt · data · optional fact</span><span>LIST/INFO · INAM · IART · ICMT · ICRD · IGNR</span><small>PCM and IEEE-float Fields are little-endian; audio sample Payload remains opaque.</small></dd></div>
-          </dl>
-        </section>
-
-        <section class="landing-beat landing-beat-local" aria-labelledby="local-heading" data-testid="landing-beat-local">
-          <div class="local-close"><span class="lock-mark" aria-hidden="true"><span></span></span><div><h2 id="local-heading">Your file stays with you.</h2><p>Choose one local PNG or WAV on desktop. Bytes, filenames, metadata, offsets, and Diagnostics stay in memory on this device; they do not enter URLs, storage, logs, telemetry, or outgoing requests.</p><p class="local-close-note">No upload. Just a short path from Sample to Inspection.</p></div></div>
-          <a class="button button-primary landing-final-action" href="${routeHref('/inspect?sample=png')}" data-testid="try-sample-final">Try the sample <span aria-hidden="true">→</span></a>
-        </section>
-
-        <footer class="sheet-footer"><span>Method: <strong>visual byte inspection</strong></span><span>Medium: <strong>hexadecimal</strong></span><span>Tool: <strong>HexLens (local)</strong></span><span class="stamp" aria-label="HexLens sample mark">HL<br />25</span></footer>
-      </section>
-    </main>
-  `;
-
-  mount.querySelectorAll<HTMLElement>('[data-landing-structure-id]').forEach((element) => {
-    element.addEventListener('click', () => {
-      const id = element.dataset.landingStructureId;
-      const structure = sample.structures.find((item) => item.id === id);
-      if (structure) renderLanding(structure.span, `[data-landing-structure-id="${CSS.escape(structure.id)}"]`);
-    });
-    element.addEventListener('keydown', (event) => {
-      const rows = Array.from(mount.querySelectorAll<HTMLElement>('[data-landing-structure-id]'));
-      if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
-      event.preventDefault();
-      const currentIndex = rows.indexOf(element);
-      const nextIndex = event.key === 'Home' ? 0 : event.key === 'End' ? rows.length - 1 : Math.max(0, Math.min(rows.length - 1, currentIndex + (event.key === 'ArrowDown' ? 1 : -1)));
-      rows[nextIndex]?.focus();
-    });
-  });
-  mount.querySelectorAll<HTMLElement>('[data-landing-byte-offset]').forEach((element) => {
-    element.addEventListener('click', () => {
-      const offset = Number(element.dataset.landingByteOffset);
-      if (Number.isInteger(offset)) renderLanding({ offset, length: 1 }, `[data-landing-byte-offset="${offset}"]`);
-    });
-  });
-  if (focusSelector) queueMicrotask(() => mount.querySelector<HTMLElement>(focusSelector)?.focus({ preventScroll: true }));
-}
-
-type GridFocusTarget =
-  | { kind: 'byte'; offset: number }
-  | { kind: 'structure'; id: string }
-  | { kind: 'field'; id: string }
-  | { kind: 'grid' }
-  | { kind: 'enumeration' }
-  | { kind: 'offset' };
-
-interface VirtualGridOptions {
-  inspection: Inspection;
-  selection: ByteSpan;
-  enumerateRawBytes: boolean;
-  anchor?: number;
-  scrollTop?: number;
-  onSelect: (selection: ByteSpan, focusTarget: GridFocusTarget, scrollTop: number, anchor: number) => void;
-}
-
-/**
- * A small dependency-free virtualizer. Rows are absolute byte offsets; the
- * Selection and anchor live outside the mounted DOM so scrolling cannot erase
- * them. The visible window is intentionally bounded by overscan rows.
- */
-class VirtualByteGrid {
-  private readonly viewport: HTMLDivElement;
-  private readonly rowsRoot: HTMLDivElement;
-  private readonly spacer: HTMLDivElement;
-  private readonly inspection: Inspection;
-  private readonly ownership;
-  private readonly onSelect: VirtualGridOptions['onSelect'];
-  private readonly enumerateRawBytes: boolean;
-  private selection: ByteSpan;
-  private anchor: number;
-  private activeOffset: number;
-  private frame: number | undefined;
-  private renderedFirstRow = -1;
-  private renderedLastRow = -1;
-
-  constructor(root: HTMLDivElement, options: VirtualGridOptions) {
-    this.viewport = root;
-    this.rowsRoot = root.querySelector<HTMLDivElement>('[data-grid-rows]') ?? root;
-    this.spacer = root.querySelector<HTMLDivElement>('[data-grid-spacer]') ?? root;
-    this.inspection = options.inspection;
-    this.ownership = createOwnershipIndex(options.inspection);
-    this.onSelect = options.onSelect;
-    this.enumerateRawBytes = options.enumerateRawBytes;
-    this.selection = normalizeSelection(options.selection, options.inspection.bytes.length);
-    this.anchor = options.anchor ?? this.selection.offset;
-    this.activeOffset = this.selection.offset;
-    this.spacer.style.height = `${rowCount(this.inspection.bytes.length) * GRID_ROW_HEIGHT}px`;
-    this.viewport.tabIndex = this.enumerateRawBytes ? -1 : 0;
-    this.viewport.setAttribute('aria-label', this.enumerateRawBytes
-      ? 'Virtualized byte grid; raw bytes are individually keyboard reachable'
-      : 'Virtualized byte grid; raw-byte enumeration is off, use go to offset or arrow keys');
-    this.viewport.setAttribute('aria-rowcount', String(rowCount(this.inspection.bytes.length)));
-    this.viewport.setAttribute('aria-colcount', String(BYTES_PER_ROW));
-    this.viewport.setAttribute('aria-describedby', 'selection-summary byte-grid-help');
-    this.viewport.setAttribute('aria-keyshortcuts', 'ArrowLeft ArrowRight ArrowUp ArrowDown Home End Shift');
-    this.viewport.addEventListener('scroll', this.handleScroll, { passive: true });
-    this.viewport.addEventListener('click', this.handleClick);
-    this.viewport.addEventListener('keydown', this.handleKeyDown);
-    if (options.scrollTop !== undefined) this.viewport.scrollTop = options.scrollTop;
-    this.render();
-  }
-
-  get scrollTop(): number {
-    return this.viewport.scrollTop;
-  }
-
-  scrollToOffset(offset: number, focus = true): void {
-    const safeOffset = Math.max(0, Math.min(this.inspection.bytes.length - 1, offset));
-    const row = Math.floor(safeOffset / BYTES_PER_ROW);
-    const top = row * GRID_ROW_HEIGHT;
-    const bottom = top + GRID_ROW_HEIGHT;
-    if (top < this.viewport.scrollTop) this.viewport.scrollTop = top;
-    else if (bottom > this.viewport.scrollTop + this.viewport.clientHeight) this.viewport.scrollTop = Math.max(0, bottom - this.viewport.clientHeight);
-    this.activeOffset = safeOffset;
-    this.render();
-    if (focus) this.focusOffset(safeOffset);
-  }
-
-  private handleScroll = (): void => {
-    if (this.frame !== undefined) return;
-    this.frame = requestAnimationFrame(() => {
-      this.frame = undefined;
-      this.render();
-    });
-  };
-
-  private handleClick = (event: MouseEvent): void => {
-    const target = event.target;
-    if (!(target instanceof HTMLElement)) return;
-    const cell = target.closest<HTMLButtonElement>('[data-byte-offset]');
-    if (!cell) return;
-    const offset = Number(cell.dataset.byteOffset);
-    if (!Number.isInteger(offset)) return;
-    const selection = event.shiftKey ? this.extendSelection(offset) : { offset, length: 1 };
-    if (!event.shiftKey) this.anchor = offset;
-    this.activeOffset = offset;
-    this.onSelect(selection, { kind: 'byte', offset }, this.scrollTop, this.anchor);
-  };
-
-  private handleKeyDown = (event: KeyboardEvent): void => {
-    const target = event.target;
-    if (!(target instanceof HTMLElement)) return;
-    const cell = target.closest<HTMLButtonElement>('[data-byte-offset]');
-    if (!cell && target !== this.viewport) return;
-    const current = cell ? Number(cell.dataset.byteOffset) : this.activeOffset;
-    if (!Number.isInteger(current)) return;
-    let next = current;
-    if (event.key === 'ArrowLeft') next -= 1;
-    else if (event.key === 'ArrowRight') next += 1;
-    else if (event.key === 'ArrowUp') next -= BYTES_PER_ROW;
-    else if (event.key === 'ArrowDown') next += BYTES_PER_ROW;
-    else if (event.key === 'Home') next = 0;
-    else if (event.key === 'End') next = this.inspection.bytes.length - 1;
-    else if (cell && (event.key === 'Enter' || event.key === ' ')) {
-      event.preventDefault();
-      this.anchor = current;
-      this.activeOffset = current;
-      this.onSelect({ offset: current, length: 1 }, { kind: 'byte', offset: current }, this.scrollTop, this.anchor);
-      return;
-    }
-    else return;
-    event.preventDefault();
-    next = Math.max(0, Math.min(this.inspection.bytes.length - 1, next));
-    const selection = event.shiftKey ? this.extendSelection(next) : { offset: next, length: 1 };
-    if (!event.shiftKey) this.anchor = next;
-    this.activeOffset = next;
-    this.scrollToOffset(next, false);
-    this.onSelect(selection, { kind: cell ? 'byte' : 'grid', ...(cell ? { offset: next } : {}) } as GridFocusTarget, this.scrollTop, this.anchor);
-  };
-
-  private extendSelection(offset: number): ByteSpan {
-    const start = Math.min(this.anchor, offset);
-    return { offset: start, length: Math.abs(offset - this.anchor) + 1 };
-  }
-
-  private render(): void {
-    const rowTotal = rowCount(this.inspection.bytes.length);
-    const viewportHeight = this.viewport.clientHeight || GRID_ROW_HEIGHT * 10;
-    const firstRow = Math.max(0, Math.floor(this.viewport.scrollTop / GRID_ROW_HEIGHT) - GRID_OVERSCAN);
-    const lastRow = Math.min(rowTotal, Math.ceil((this.viewport.scrollTop + viewportHeight) / GRID_ROW_HEIGHT) + GRID_OVERSCAN);
-    if (firstRow === this.renderedFirstRow && lastRow === this.renderedLastRow) return;
-    this.renderedFirstRow = firstRow;
-    this.renderedLastRow = lastRow;
-    const fragment = document.createDocumentFragment();
-    for (let rowIndex = firstRow; rowIndex < lastRow; rowIndex += 1) fragment.appendChild(this.renderRow(rowIndex));
-    this.rowsRoot.replaceChildren(fragment);
-    const activeCell = this.rowsRoot.querySelector<HTMLElement>(`[data-byte-offset="${this.activeOffset}"]`);
-    if (activeCell) this.viewport.setAttribute('aria-activedescendant', activeCell.id);
-    else this.viewport.removeAttribute('aria-activedescendant');
-  }
-
-  private renderRow(rowIndex: number): HTMLDivElement {
-    const row = getRow(this.inspection.bytes, rowIndex);
-    const rowElement = document.createElement('div');
-    rowElement.className = 'byte-grid-row';
-    rowElement.setAttribute('role', 'row');
-    rowElement.setAttribute('aria-rowindex', String(rowIndex + 1));
-    rowElement.dataset.rowIndex = String(rowIndex);
-    rowElement.style.transform = `translateY(${row.index * GRID_ROW_HEIGHT}px)`;
-    rowElement.style.height = `${GRID_ROW_HEIGHT}px`;
-
-    const offset = document.createElement('span');
-    offset.className = 'byte-offset';
-    offset.setAttribute('role', 'rowheader');
-    offset.textContent = formatOffset(row.offset, this.inspection.bytes.length);
-    offset.setAttribute('aria-label', `Row offset hexadecimal ${formatOffset(row.offset, this.inspection.bytes.length)}, decimal ${formatDecimalOffset(row.offset)}`);
-    rowElement.appendChild(offset);
-
-    const cells = document.createElement('div');
-    cells.className = 'byte-grid-cells';
-    cells.setAttribute('role', 'gridcell');
-    cells.setAttribute('aria-label', `Hexadecimal bytes at offset ${formatOffset(row.offset, this.inspection.bytes.length)}`);
-    row.values.forEach((value, index) => {
-      const byteOffset = row.offset + index;
-      const owner = ownershipAt(this.ownership, byteOffset);
-      const previous = byteOffset > 0 ? ownershipAt(this.ownership, byteOffset - 1) : undefined;
-      const next = byteOffset + 1 < this.inspection.bytes.length ? ownershipAt(this.ownership, byteOffset + 1) : undefined;
-      const isSelected = byteOffset >= this.selection.offset && byteOffset < this.selection.offset + this.selection.length;
-      const cell = document.createElement('button');
-      cell.type = 'button';
-      cell.className = `byte-cell ownership-${owner.kind}${isSelected ? ' is-selected' : ''}${!previous || previous.id !== owner.id ? ' owner-start' : ''}${!next || next.id !== owner.id ? ' owner-end' : ''}`;
-      cell.dataset.byteOffset = String(byteOffset);
-      cell.dataset.ownership = owner.kind;
-      cell.dataset.ownershipLabel = owner.label;
-      cell.id = `byte-cell-${byteOffset}`;
-      cell.tabIndex = this.enumerateRawBytes ? 0 : -1;
-      cell.setAttribute('aria-pressed', String(isSelected));
-      const ownershipDescription = owner.kind === 'unmapped' || owner.kind === 'unowned'
-        ? 'Unmapped span'
-        : owner.kind === 'field' ? 'Structure-owned Field' : 'Structure-owned byte';
-      const paddedOffset = formatOffset(byteOffset, this.inspection.bytes.length);
-      const compactOffset = byteOffset.toString(16).toUpperCase().padStart(2, '0');
-      cell.setAttribute('aria-label', `${formatByte(value)} at offset ${compactOffset}`);
-      cell.setAttribute('aria-description', `${ownershipDescription}; hexadecimal offset ${paddedOffset}; decimal offset ${formatDecimalOffset(byteOffset)}; ${asciiLabel(value)}`);
-      cell.title = `${owner.label} · ${asciiLabel(value)}`;
-      cell.textContent = formatByte(value);
-      cells.appendChild(cell);
-    });
-    rowElement.appendChild(cells);
-
-    const ascii = document.createElement('span');
-    ascii.className = 'ascii-gutter';
-    ascii.textContent = row.ascii;
-    ascii.setAttribute('aria-label', `Printable ASCII for row ${formatOffset(row.offset, this.inspection.bytes.length)}: ${row.values.map(asciiLabel).join(', ')}`);
-    rowElement.appendChild(ascii);
-    return rowElement;
-  }
-
-  private focusOffset(offset: number): void {
-    queueMicrotask(() => {
-      const cell = Array.from(this.rowsRoot.querySelectorAll<HTMLButtonElement>('[data-byte-offset]')).find((item) => Number(item.dataset.byteOffset) === offset);
-      cell?.focus({ preventScroll: true });
-    });
-  }
-}
-
-
-function renderNarrowTabs(activeTab: NarrowTab): string {
-  const tabs: Array<{ id: NarrowTab; label: string }> = [
-    { id: 'structures', label: 'Structures' },
-    { id: 'bytes', label: 'Bytes' },
-    { id: 'fields', label: 'Fields' },
-  ];
-  return `<div class="narrow-inspector-tabs" role="tablist" aria-label="Sample views" data-testid="narrow-tabs">${tabs.map((tab) => `<button class="narrow-inspector-tab${tab.id === activeTab ? ' is-active' : ''}" type="button" role="tab" id="narrow-tab-${tab.id}" data-testid="narrow-tab-${tab.id}" data-narrow-tab="${tab.id}" aria-controls="narrow-panel-${tab.id}" aria-selected="${tab.id === activeTab}" tabindex="${tab.id === activeTab ? '0' : '-1'}">${tab.label}</button>`).join('')}</div>`;
-}
+// The byte-grid implementation lives behind the VirtualByteGrid module seam.
 
 function renderNarrowSelectionSummary(
   inspection: Inspection,
@@ -841,23 +480,6 @@ function renderPreview(inspection: Inspection, displayFormat: string, previewUrl
     : `<img data-testid="source-preview-media" src="${escapeHtml(previewUrl)}" alt="The ${displayFormat} rendered as the original file" />`;
 }
 
-function activateNarrowTab(target: InspectionSession, nextTab: NarrowTab, focusTab = true): void {
-  target.narrowTab = nextTab;
-  const tabs = Array.from(mount.querySelectorAll<HTMLButtonElement>('[data-narrow-tab]'));
-  tabs.forEach((tab) => {
-    const active = tab.dataset.narrowTab === nextTab;
-    tab.classList.toggle('is-active', active);
-    tab.setAttribute('aria-selected', String(active));
-    tab.tabIndex = active ? 0 : -1;
-  });
-  mount.querySelectorAll<HTMLElement>('[data-narrow-panel]').forEach((panel) => {
-    const active = panel.dataset.narrowPanel === nextTab;
-    panel.hidden = !active;
-    panel.classList.toggle('is-active', active);
-  });
-  if (focusTab) tabs.find((tab) => tab.dataset.narrowTab === nextTab)?.focus({ preventScroll: true });
-}
-
 function renderInspector(target: InspectionSession, requestedSelection?: ByteSpan, focusTarget?: GridFocusTarget, gridScrollTop?: number, selectionAnchor?: number): void {
   const inspection = target.inspection;
   ensurePreview(target);
@@ -882,7 +504,7 @@ function renderInspector(target: InspectionSession, requestedSelection?: ByteSpa
         <div class="registration registration-top-left" aria-hidden="true"></div>
         <div class="registration registration-top-right" aria-hidden="true"></div>
         <header class="inspector-toolbar">
-          <a href="${routeHref('/')}" class="back-link">← Back to landing</a>
+          <a href="${router.href('/')}" class="back-link">← Back to landing</a>
           <div class="toolbar-title"><span class="wordmark wordmark-small">HexLens</span><span class="toolbar-divider" aria-hidden="true"></span><h1 id="inspector-title">${target.kind === 'local' ? 'Local Inspection' : 'Sample Inspection'}</h1></div>
           <div class="file-identity"><strong title="${escapeHtml(sourceName)}" aria-label="${target.kind === 'local' ? `Local filename: ${escapeHtml(sourceName)}` : escapeHtml(sourceName)}">${escapeHtml(sourceName)}</strong><span>${inspection.bytes.length.toLocaleString('en-US')} bytes · ${displayFormat}${target.kind === 'local' ? ' · local' : ''}</span></div>
         </header>
@@ -925,7 +547,7 @@ function renderInspector(target: InspectionSession, requestedSelection?: ByteSpa
     tabElements.forEach((tab, index) => {
       tab.addEventListener('click', () => {
         const nextTab = tab.dataset.narrowTab as NarrowTab | undefined;
-        if (nextTab) activateNarrowTab(target, nextTab);
+        if (nextTab) activateNarrowTab(mount, target, nextTab);
       });
       tab.addEventListener('keydown', (event) => {
         if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
@@ -937,7 +559,7 @@ function renderInspector(target: InspectionSession, requestedSelection?: ByteSpa
             : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabElements.length) % tabElements.length;
         const nextTab = tabElements[nextIndex];
         const nextTabId = nextTab?.dataset.narrowTab as NarrowTab | undefined;
-        if (nextTabId) activateNarrowTab(target, nextTabId);
+        if (nextTabId) activateNarrowTab(mount, target, nextTabId);
       });
     });
   }
@@ -992,7 +614,7 @@ function renderInspector(target: InspectionSession, requestedSelection?: ByteSpa
   });
 
   mount.querySelector<HTMLButtonElement>('[data-focus-bytes]')?.addEventListener('click', () => {
-    if (narrow) activateNarrowTab(target, 'bytes', false);
+    if (narrow) activateNarrowTab(mount, target, 'bytes', false);
     grid.scrollToOffset(selection.offset);
   });
   mount.querySelector<HTMLButtonElement>('[data-focus-semantic]')?.addEventListener('click', (event) => {
@@ -1000,7 +622,7 @@ function renderInspector(target: InspectionSession, requestedSelection?: ByteSpa
     const id = button.dataset.focusSemantic;
     if (!id) return;
     const kind = button.dataset.focusSemanticKind;
-    if (narrow) activateNarrowTab(target, kind === 'field' ? 'fields' : 'structures', false);
+    if (narrow) activateNarrowTab(mount, target, kind === 'field' ? 'fields' : 'structures', false);
     const semantic = kind === 'field'
       ? mount.querySelector<HTMLElement>(`.field-row[data-field-id="${CSS.escape(id)}"]`)
       : mount.querySelector<HTMLElement>(`[data-structure-id="${CSS.escape(id)}"]`);
@@ -1120,7 +742,7 @@ mount.addEventListener('dragleave', (event) => {
 mount.addEventListener('drop', handleDrop);
 
 function renderRoute(): void {
-  view = currentView();
+  view = router.currentView();
   if (view === 'landing') {
     fileFlow.cancel();
     operation = { phase: 'ready', origin: 'landing' };

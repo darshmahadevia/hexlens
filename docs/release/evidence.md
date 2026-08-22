@@ -4,7 +4,7 @@ This is the release record for issue #12. The commands below are reproducible fr
 
 ## Release decision
 
-- Stack: Vite 7 client, TypeScript 5, browser-native `File`, `URL.createObjectURL`, a module Web Worker for local Format parsing, and a dependency-free virtual byte grid. `LocalFileFlow` and `FileJobController` keep worker lifecycle and stale-job suppression outside the render module; `structure-tree.ts` and `field-inspector.ts` keep semantic rendering responsibilities out of the route/lifecycle module. The format contract remains the shared Byte-span model in ADR-0001.
+- Stack: Vite 7 client, TypeScript 5, browser-native `File`, `URL.createObjectURL`, a module Web Worker for local Format parsing, and a dependency-free virtual byte grid. `routing.ts`, `byte-grid-view.ts`, and `narrow-navigation.ts` own route, virtualization, and tab/accessibility seams; `LocalFileFlow` and `FileJobController` keep worker lifecycle and stale-job suppression outside the render module; `structure-tree.ts` and `field-inspector.ts` keep semantic rendering responsibilities out of the route/lifecycle module. The format contract remains the shared Byte-span model in ADR-0001.
 - Hosting: GitHub Pages through `.github/workflows/deploy-pages.yml`. `npm run build:pages` emits a `/hexlens/`-prefixed artifact and a `404.html` SPA fallback for `/inspect` deep links.
 - Public target: `https://darshmahadevia.github.io/hexlens/`. The ticket branch is intentionally not pushed. A public deployment succeeded from the separate `release-pages` branch at workflow run [32547295493](https://github.com/darshmahadevia/hexlens/actions/runs/32547295493) for commit `a5a8ead`; the environment also permits the integrated `main` branch for the eventual merge deployment. The root returned HTTP 200, and a real browser rendered `/hexlens/inspect?sample=png` from the fallback body. Static GitHub Pages returns HTTP 404 for that deep-link response even though the SPA renders; this is the remaining hosting evidence limitation.
 - Scope: PNG and WAV only. The release does not claim ZIP, ELF, RF64, WAVE_FORMAT_EXTENSIBLE, compressed WAV codecs, PNG pixel decoding, arbitrary phone-file inspection, or server parsing.
@@ -15,20 +15,20 @@ The release policy is recorded in [thresholds.json](./thresholds.json) before th
 
 ## Performance, memory, and safety profile
 
-Run with `npm run profile:release`. The script profiles project-owned representative fixtures, all declared PNG chunks, metadata WAV, 50,000-Structure adversarial inputs, 1,000-Diagnostic adversarial inputs, and a 25 MiB + 1 byte size cap. It records parse time, structure count, Diagnostic count, completion state, and Node memory deltas. The final recorded run was `2026-08-22T03:38:22Z`.
+Run with `npm run profile:release`. The script profiles project-owned representative fixtures, all declared PNG chunks, metadata WAV, 50,000-Structure adversarial inputs, 1,000-Diagnostic adversarial inputs, and a 25 MiB + 1 byte size cap. It records parse time, structure count, Diagnostic count, completion state, and Node memory deltas. The final recorded run was `2026-08-22T03:51:05Z`.
 
 | Case | Size | Parse time | Structures | Diagnostics | Result | Memory observation |
 | --- | ---: | ---: | ---: | ---: | --- | --- |
-| PNG Sample | 68 B | 0.701 ms | 4 | 0 | ready | 0.12 MiB heap delta |
-| PNG declared-chunk fixture | 253 B | 0.553 ms | 12 | 1 | ready | 0.38 MiB heap delta |
-| PNG 50,000-Structure cap | 650,149 B | 142.455 ms | 50,000 | 2 | limit-reached | 94.2 MiB heap delta; 153.4 MiB RSS allocator delta |
-| PNG 1,000-Diagnostic cap | 13,149 B | 2.825 ms | 1,002 | 1,000 | limit-reached | 6.8 MiB heap delta |
-| PNG size cap | 26,214,401 B | 3.595 ms | 1 | 1 | limit-reached | input remains bounded to the cap-plus-one read |
-| WAV Sample | 52 B | 0.826 ms | 3 | 0 | ready | 0.07 MiB heap delta |
-| WAV metadata fixture | 160 B | 0.457 ms | 10 | 0 | ready | 0.11 MiB heap delta |
-| WAV 50,000-Structure cap | 500,126 B | 71.613 ms | 50,000 | 1 | limit-reached | 98.7 MiB heap delta; 19.4 MiB RSS allocator delta |
-| WAV 1,000-Diagnostic cap | 10,102 B | 9.445 ms | 1,001 | 1,000 | limit-reached | 11.1 MiB heap delta |
-| WAV size cap | 26,214,401 B | 1.787 ms | 1 | 1 | limit-reached | input remains bounded to the cap-plus-one read |
+| PNG Sample | 68 B | 0.704 ms | 4 | 0 | ready | 0.13 MiB heap delta |
+| PNG declared-chunk fixture | 253 B | 0.525 ms | 12 | 1 | ready | 0.24 MiB heap delta |
+| PNG 50,000-Structure cap | 650,149 B | 145.718 ms | 50,000 | 2 | limit-reached | 92.9 MiB heap delta; 153.1 MiB RSS allocator delta |
+| PNG 1,000-Diagnostic cap | 13,149 B | 3.313 ms | 1,002 | 1,000 | limit-reached | 6.8 MiB heap delta |
+| PNG size cap | 26,214,401 B | 4.103 ms | 1 | 1 | limit-reached | input remains bounded to the cap-plus-one read |
+| WAV Sample | 52 B | 0.665 ms | 3 | 0 | ready | 0.07 MiB heap delta |
+| WAV metadata fixture | 160 B | 0.442 ms | 10 | 0 | ready | 0.11 MiB heap delta |
+| WAV 50,000-Structure cap | 500,126 B | 74.171 ms | 50,000 | 1 | limit-reached | 98.7 MiB heap delta; 19.5 MiB RSS allocator delta |
+| WAV 1,000-Diagnostic cap | 10,102 B | 9.438 ms | 1,001 | 1,000 | limit-reached | 11.1 MiB heap delta |
+| WAV size cap | 26,214,401 B | 2.043 ms | 1 | 1 | limit-reached | input remains bounded to the cap-plus-one read |
 
 The profile stays under the pre-recorded 50/100/500/250/100 ms parse budgets and the 128 MiB semantic-heap budget. RSS deltas include the Node allocator and are reported separately rather than mistaken for retained semantic objects. The 50,000-Structure cap is intentionally conservative for a client-only browser.
 
@@ -78,7 +78,7 @@ This is a scripted acceptance walkthrough, not a measured user-behavior claim.
 
 ## Impeccable finish evidence
 
-The required route briefs and direction contract were read through `context.mjs` and `surface-brief.mjs`. The bounded visual round uses the captures in `.impeccable/review/` for landing, desktop inspector, narrow Sample inspector, empty state, and failure state. The detector was run once after the final UI changes across `index.html`, `src/main.ts`, and `src/styles.css`; its optional HTML parser modules were unavailable in this worktree, so it used the documented regex fallback and reported only advisory type/radius scale findings, with no primary UI findings. The finish disposition is recorded in `.impeccable/finish-review.md`, while the post-correction documenter update is recorded in `DESIGN.md` and `.impeccable/design.json`. The documenter pass preserves the Conservation Workbench tokens and does not canonize any temporary audit artifact as product UI.
+The required route briefs and direction contract were read through `context.mjs` and `surface-brief.mjs`. The bounded visual round uses the captures in `.impeccable/review/` for landing, desktop inspector, narrow Sample inspector, empty state, and failure state. The detector was run once after the final UI changes across `index.html`, `src/main.ts`, `src/styles.css`, and the extracted view modules; its optional HTML parser modules were unavailable in this worktree, so it used the documented regex fallback and reported only advisory type/radius scale findings, with no primary UI findings. The finish disposition is recorded in `.impeccable/finish-review.md`, while the post-correction documenter update is recorded in `DESIGN.md` and `.impeccable/design.json`. The documenter pass preserves the Conservation Workbench tokens and does not canonize any temporary audit artifact as product UI.
 
 | Surface | Capture | Viewport / extent | Result |
 | --- | --- | --- | --- |
