@@ -540,7 +540,7 @@ function renderInspector(target: InspectionSession, requestedSelection?: ByteSpa
           ${renderThemeToggle()}
         </header>
         ${renderStatus(inspection)}
-        ${narrow ? '<p class="narrow-sample-note">Bundled Sample · phone view keeps the inspection focused on Structures, bytes, and Fields.</p>' : '<div class="inspector-ingress"><div><strong>Open another local file</strong><span>Choose one PNG or WAV file, or drop it anywhere in this window.</span></div>' + renderFileIngress() + '</div>'}
+        ${narrow ? '<p class="narrow-sample-note">Bundled Sample · local to this browser.</p>' : '<div class="inspector-ingress"><div><strong>Open another local file</strong><span>Choose one PNG or WAV file, or drop it anywhere in this window.</span></div>' + renderFileIngress() + '</div>'}
         ${renderNotice()}
         ${renderRecoveryActions(inspection)}
         ${renderDiagnostics(inspection)}
