@@ -1,5 +1,5 @@
 import './styles.css';
-import type { ByteSpan, Inspection } from './domain/inspection.ts';
+import type { ByteSpan, FormatId, Inspection } from './domain/inspection.ts';
 import {
   BYTES_PER_ROW,
   asciiLabel,
@@ -20,7 +20,7 @@ import {
   type SelectionResolution,
 } from './domain/byte-grid.ts';
 import { spanIntersects, spanLabel } from './domain/inspection.ts';
-import { hasPngSignature, inspectPng } from './format.ts';
+import { detectFormat, inspectDetected } from './format.ts';
 import { FileJobController, type FileJobParseResult } from './file-session.ts';
 import { sampleInspection, PNG_SAMPLE_BASE64, wavSampleInspection, WAV_SAMPLE_BASE64 } from './sample.ts';
 
@@ -30,6 +30,7 @@ if (!app) throw new Error('HexLens mount point is missing.');
 const mount = app;
 
 const sample = sampleInspection();
+const wavSample = wavSampleInspection();
 const GRID_ROW_HEIGHT = 48;
 const GRID_OVERSCAN = 5;
 const MAX_LOCAL_FILE_BYTES = 25 * 1024 * 1024;
@@ -247,11 +248,11 @@ function handleDrop(event: DragEvent): void {
 function ensurePreview(target: InspectionSession): void {
   if (target.kind !== 'local' || target.previewUrl || typeof URL.createObjectURL !== 'function') return;
   const copy = new Uint8Array(target.inspection.bytes);
-  target.previewUrl = URL.createObjectURL(new Blob([copy.buffer], { type: 'image/png' }));
+  target.previewUrl = URL.createObjectURL(new Blob([copy.buffer], { type: target.inspection.format === 'wav' ? 'audio/wav' : 'image/png' }));
 }
 
 function renderFileIngress(): string {
-  return `<div class="file-ingress" data-testid="file-ingress"><label class="button button-secondary file-picker"><span>Open a local PNG</span><input class="file-picker-input" type="file" accept=".png,image/png" aria-label="Choose one local PNG file" data-testid="local-file-input" /></label><span class="file-ingress-note">One file · stays in memory only</span></div>`;
+  return `<div class="file-ingress" data-testid="file-ingress"><label class="button button-secondary file-picker"><span>Open a local PNG or WAV</span><input class="file-picker-input" type="file" accept=".png,.wav,image/png,audio/wav" aria-label="Choose one local PNG file or WAV file" data-testid="local-file-input" /></label><span class="file-ingress-note">One file · stays in memory only</span></div>`;
 }
 
 function renderNotice(): string {
@@ -261,11 +262,11 @@ function renderNotice(): string {
 
 function operationLabel(inspection?: Inspection): string {
   if (operation.phase === 'reading') return 'Reading local file…';
-  if (operation.phase === 'parsing') return 'Parsing PNG locally…';
-  if (!inspection) return 'Ready for one local PNG file';
+  if (operation.phase === 'parsing') return 'Parsing locally…';
+  if (!inspection) return 'Ready for one local PNG or WAV file';
   const diagnosticCount = inspection.diagnostics.length;
   const suffix = diagnosticCount ? ` · ${diagnosticCount} Diagnostic${diagnosticCount === 1 ? '' : 's'}` : '';
-  return `${inspection.state === 'ready' ? 'Ready' : 'Partial Inspection'}${suffix} · file data stays in memory only`;
+  return `${inspection.state === 'ready' ? 'Ready' : 'Partial Inspection'}${suffix} · ${formatLabel(inspection.format)} · file data stays in memory only`;
 }
 
 function renderStatus(inspection?: Inspection): string {
@@ -341,7 +342,7 @@ function renderLanding(): void {
               <a class="button button-primary" href="/inspect?sample=png" data-testid="try-sample">Try the sample <span aria-hidden="true">→</span></a>
               ${renderFileIngress()}
             </div>
-            <p class="drop-hint" data-testid="drop-hint">Or drop one PNG file onto this sheet.</p>
+            <p class="drop-hint" data-testid="drop-hint">Or drop one PNG or WAV file onto this sheet.</p>
             ${renderNotice()}
             <p class="local-note"><span class="lock-mark" aria-hidden="true"><span></span></span><span><strong>100% local.</strong><br />Your files never leave your machine.</span></p>
             ${operation.phase !== 'ready' ? `<p class="landing-operation" role="status" aria-live="polite">${operationLabel()}</p>` : ''}
@@ -352,7 +353,7 @@ function renderLanding(): void {
             <div class="sample-offsets" aria-hidden="true"><span>Offset</span><span>00</span><span>04</span><span>08</span><span>0C</span><span>14</span><span>18</span></div>
             ${renderByteStrip(sample, sample.structures[0]?.span)}
             <div class="landing-structure-map">${renderStructureLabels(sample, sample.structures[0]?.span)}</div>
-            <figure class="source-preview-mini"><figcaption>Source preview · original-file rendering</figcaption><img src="${sourceDataUrl()}" alt="A one-pixel PNG Sample rendered as a tiny transparent image" /></figure>
+            <figure class="source-preview-mini"><figcaption>Source preview · original-file rendering</figcaption><img src="${sourceDataUrl('png')}" alt="A one-pixel PNG Sample rendered as a tiny transparent image" /></figure>
           </div>
         </div>
 
@@ -592,17 +593,19 @@ function renderFieldInspector(inspection: Inspection, resolution: SelectionResol
   return `<div class="field-inspector"><div class="panel-heading"><span>Field inspector</span><span class="panel-rule" aria-hidden="true"></span></div>${heading}<div class="field-list">${fields}</div>${renderSemanticDetail(inspection, resolution)}</div>`;
 }
 
-function renderInspector(target: InspectionSession, requestedSelection: ByteSpan = { offset: 0, length: Math.min(8, target.inspection.bytes.length) }, focusTarget?: GridFocusTarget, gridScrollTop?: number, selectionAnchor?: number): void {
+function renderInspector(target: InspectionSession, requestedSelection: ByteSpan = initialSelection(target.inspection), focusTarget?: GridFocusTarget, gridScrollTop?: number, selectionAnchor?: number): void {
   const inspection = target.inspection;
   ensurePreview(target);
   const selection = normalizeSelection(requestedSelection, inspection.bytes.length);
   const resolution = resolveSelection(inspection, selection);
   const selectedLabel = resolution.field?.label ?? resolution.structure?.label ?? resolution.unmapped?.label ?? 'Unmapped span';
   const selectedSummary = `Selected ${selectedLabel}, offset ${selection.offset}, length ${selection.length} bytes.`;
-  const formatLabel = inspection.format.toUpperCase();
+  const displayFormat = formatLabel(inspection.format);
   const sourceName = inspection.sourceName || 'Unnamed local file';
   const preview = target.previewUrl
-    ? `<img src="${escapeHtml(target.previewUrl)}" alt="The local PNG rendered as the original file" />`
+    ? inspection.format === 'wav'
+      ? `<audio controls preload="metadata" src="${escapeHtml(target.previewUrl)}" aria-label="The WAV rendered as the original file"></audio>`
+      : `<img src="${escapeHtml(target.previewUrl)}" alt="The ${displayFormat} rendered as the original file" />`
     : '<p class="preview-unavailable">Original-file rendering unavailable; the Inspection remains usable.</p>';
   mount.innerHTML = `
     <main class="app-shell inspector-shell">
@@ -612,15 +615,15 @@ function renderInspector(target: InspectionSession, requestedSelection: ByteSpan
         <header class="inspector-toolbar">
           <a href="/" class="back-link">← Back to landing</a>
           <div class="toolbar-title"><span class="wordmark wordmark-small">HexLens</span><span class="toolbar-divider" aria-hidden="true"></span><h1 id="inspector-title">${target.kind === 'local' ? 'Local Inspection' : 'Sample Inspection'}</h1></div>
-          <div class="file-identity"><strong title="${escapeHtml(sourceName)}" aria-label="${target.kind === 'local' ? `Local filename: ${escapeHtml(sourceName)}` : escapeHtml(sourceName)}">${escapeHtml(sourceName)}</strong><span>${inspection.bytes.length.toLocaleString('en-US')} bytes · ${formatLabel}${target.kind === 'local' ? ' · local' : ''}</span></div>
+          <div class="file-identity"><strong title="${escapeHtml(sourceName)}" aria-label="${target.kind === 'local' ? `Local filename: ${escapeHtml(sourceName)}` : escapeHtml(sourceName)}">${escapeHtml(sourceName)}</strong><span>${inspection.bytes.length.toLocaleString('en-US')} bytes · ${displayFormat}${target.kind === 'local' ? ' · local' : ''}</span></div>
         </header>
         ${renderStatus(inspection)}
-        <div class="inspector-ingress"><div><strong>Open another local PNG</strong><span>Choose one file or drop it anywhere on this workbench.</span></div>${renderFileIngress()}</div>
+        <div class="inspector-ingress"><div><strong>Open another local file</strong><span>Choose one PNG or WAV file, or drop it anywhere on this workbench.</span></div>${renderFileIngress()}</div>
         ${renderNotice()}
         ${renderDiagnostics(inspection)}
 
         <div class="inspector-layout">
-          <aside class="structure-panel" aria-labelledby="structure-heading"><div class="panel-heading"><span id="structure-heading">Structures</span><span class="panel-rule" aria-hidden="true"></span></div><p class="panel-intro">Named parts in source-file order.</p><nav class="structure-list" aria-label="${formatLabel} Structures">${renderStructureLabels(inspection, selection, true)}</nav><div class="structure-legend"><span class="legend-mark legend-structure" aria-hidden="true"></span><span>Structure boundary</span><span class="legend-mark legend-selection" aria-hidden="true"></span><span>Selected Byte span</span><span class="legend-mark legend-unmapped" aria-hidden="true"></span><span>Unmapped span</span></div></aside>
+          <aside class="structure-panel" aria-labelledby="structure-heading"><div class="panel-heading"><span id="structure-heading">Structures</span><span class="panel-rule" aria-hidden="true"></span></div><p class="panel-intro">${displayFormat} named parts in source-file order.</p><nav class="structure-list" aria-label="${displayFormat} Structures">${renderStructureLabels(inspection, selection, true)}</nav><div class="structure-legend"><span class="legend-mark legend-structure" aria-hidden="true"></span><span>Structure boundary</span><span class="legend-mark legend-selection" aria-hidden="true"></span><span>Selected Byte span</span><span class="legend-mark legend-unmapped" aria-hidden="true"></span><span>Unmapped span</span></div></aside>
 
           <section class="byte-panel" aria-labelledby="bytes-heading"><div class="panel-heading"><span id="bytes-heading">Bytes</span><span class="panel-rule" aria-hidden="true"></span><span class="panel-meta">16 bytes / row · virtualized</span></div><p class="panel-intro">Select a byte to focus its smallest matching Field. Shift-select or use arrow keys to extend the exact Selection.</p>
             <form class="goto-form" data-testid="goto-form"><label for="goto-offset">Go to offset</label><select id="goto-mode" aria-label="Offset notation"><option value="hex">Hexadecimal</option><option value="decimal">Decimal (explicit)</option></select><input id="goto-offset" data-testid="offset-input" name="offset" inputmode="text" autocomplete="off" placeholder="e.g. 0030" aria-describedby="offset-help offset-error" /><button class="button button-secondary" type="submit">Go</button><span id="offset-help" class="sr-only">Hexadecimal is the default. Choose Decimal explicitly for base ten.</span></form><p class="offset-error" id="offset-error" data-testid="offset-error" role="alert" hidden></p>
@@ -630,7 +633,7 @@ function renderInspector(target: InspectionSession, requestedSelection: ByteSpan
 
           <aside class="field-panel" aria-labelledby="field-heading">${renderFieldInspector(inspection, resolution)}<figure class="source-preview"><figcaption id="field-heading">Source preview <span>· original-file rendering</span></figcaption>${preview}</figure></aside>
         </div>
-        <footer class="sheet-footer inspector-footer"><span>Inspection: <strong>${target.kind === 'local' ? 'Local PNG' : `${formatLabel} Sample`}</strong></span><span>Source preview is not parsed output.</span><span class="footer-local">Local only · no telemetry</span></footer>
+        <footer class="sheet-footer inspector-footer"><span>Inspection: <strong>${target.kind === 'local' ? `Local ${displayFormat}` : `${displayFormat} Sample`}</strong></span><span>Source preview is not parsed output.</span><span class="footer-local">Local only · no telemetry</span></footer>
       </section>
     </main>
   `;
@@ -757,7 +760,7 @@ function renderRoute(): void {
   if (params.get('sample') === 'png' || params.get('sample') === 'wav') {
     fileJobs.cancel();
     revokePreview(session);
-    session = sampleSession();
+    session = sampleSession(params.get('sample') === 'wav' ? wavSample : sample);
     operation = { phase: 'ready', origin: 'inspect' };
   }
   render();
