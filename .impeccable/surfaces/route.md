@@ -23,8 +23,8 @@ Use semantic HTML/CSS for paper, rules, type, labels, buttons, coverage ledgers,
 
 ## Responsive behavior
 
-At narrow widths, keep the workbench sheet intact and stack the promise, PNG tracer, mechanism ledger, coverage ledger, and local close in source order. The sample remains readable without horizontal scrolling; controls stay at least 44px and the primary action remains visible. Reduced motion removes selection animation and keeps Selection updates immediate.
+At narrow widths, keep the workbench sheet intact and stack the promise, PNG tracer, mechanism ledger, coverage ledger, educational invitation, and local close in source order. The sample remains readable without horizontal scrolling. Inspector entry points become a clear, non-interactive coming-soon state. Reduced motion removes selection animation and keeps Selection updates immediate.
 
 ## Unresolved decisions
 
-The landing surface routes arbitrary local-file inspection to the desktop inspector; phones remain Sample-only through the narrow inspector contract. Formats beyond PNG and WAV are intentionally unnamed until they meet the same bounded Inspection, safety, accessibility, and privacy evidence gate.
+The landing surface routes file inspection to the desktop Inspector. Phone-sized viewports do not expose Inspector routes; direct links return to the landing page. Formats beyond PNG and WAV are intentionally unnamed until they meet the same bounded Inspection, safety, accessibility, and privacy evidence gate.

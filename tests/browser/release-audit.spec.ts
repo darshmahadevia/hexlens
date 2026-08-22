@@ -26,6 +26,8 @@ test('release narrow Sample surfaces stay free of serious or critical violations
   await expectNoSeriousA11yViolations(page);
 
   await page.goto('/inspect?sample=wav');
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByTestId('mobile-coming-soon')).toBeVisible();
   await expectNoSeriousA11yViolations(page);
 });
 

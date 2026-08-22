@@ -138,7 +138,7 @@ components:
 
 HexLens is a full-screen editorial exchange between a promise and its proof. The landing route gives an oversized manifesto headline the left side of the page and a live byte/Structure proof the right side. Warm paper, near-black ink, restrained red, and hard rules make the binary file feel like a readable artifact rather than a terminal wall. Manrope carries the argument; JetBrains Mono measures offsets, bytes, and compact labels.
 
-The Inspector keeps a Structure rail beside a large Map workspace, with Info as the educational counterpart. A selected Structure or byte is one semantic thread: it updates the raw span, Field interpretation, and the lesson that explains why the span exists. The mobile Inspector turns that workspace into four tabs—Structures, Bytes, Fields, and Info—while preserving the same Selection.
+The desktop Inspector keeps a Structure rail beside a large Map workspace, with Info as the educational counterpart. A selected Structure or byte is one semantic thread: it updates the raw span, Field interpretation, and the lesson that explains why the span exists. Phone-sized viewports remain on the complete landing story and present the Inspector as coming soon; direct Inspector URLs return to the landing page.
 
 **Key Characteristics:**
 
@@ -212,7 +212,7 @@ The landing is a full-width, asymmetrical split. A sticky, ruled navigation bar 
 
 Below the hero, substantive editorial sections alternate warm paper and canvas fields: the Bytes/Structure/Meaning connection rows, PNG/WAV coverage ledger, an educational Info invitation, and the local-only close. Sections use generous `clamp(96px, 10vw, 156px)` vertical padding and hard horizontal rules rather than card stacks.
 
-The Inspector is a two-part workspace: a Structure rail on the left and a large Map or Info workspace on the right. Map contains the virtualized 16-bytes-per-row grid, offset controls, Selection summary, Fields, and the original-file Source preview. Info replaces the Map workspace with a lesson tied to the current Selection. At `980px`, the Inspector rail and workspace become a horizontally scrollable two-column model; at `620px`, the landing stacks, controls become full width, and the Inspector becomes four keyboard-operable tabs: Structures, Bytes, Fields, and Info. The byte grid keeps a minimum internal width and scrolls rather than compressing byte identity.
+The Inspector is a two-part desktop workspace: a Structure rail on the left and a large Map or Info workspace on the right. Map contains the virtualized 16-bytes-per-row grid, offset controls, Selection summary, Fields, and the original-file Source preview. Info replaces the Map workspace with a lesson tied to the current Selection. At `980px`, the Inspector rail and workspace become a horizontally scrollable two-column model. At `620px`, the landing stacks and controls become full width; Inspector routes return to the landing page.
 
 ## Elevation & Depth
 
@@ -262,7 +262,7 @@ Fields are ruled rows with a readable label, compact value, encoded bytes, repre
 
 ### Info Workspace
 
-Info is the educational workspace, not a modal card. It replaces the Map content on desktop and occupies a ruled, generous paper field. The current lesson title, meaning, “How to read it,” “Where it sits,” and the selected source bytes all follow the active Selection. On mobile it is the fourth tab and preserves the same lesson contract.
+Info is the educational workspace, not a modal card. It replaces the Map content on desktop and occupies a ruled, generous paper field. The current lesson title, meaning, “How to read it,” “Where it sits,” and the selected source bytes all follow the active Selection.
 
 ## Do's and Don'ts
 
@@ -272,7 +272,7 @@ Info is the educational workspace, not a modal card. It replaces the Map content
 - **Do** use hard rules, warm paper tones, square controls, and restrained spacing to make hierarchy legible.
 - **Do** reserve red for action and Selection, and mint for local/ready status.
 - **Do** keep one Selection synchronized across Structure, bytes, Fields, Source preview context, and Info.
-- **Do** preserve the two-pane desktop Inspector and four-tab mobile Inspector model.
+- **Do** preserve the two-pane desktop Inspector and keep phone visitors on the landing page with an honest coming-soon state.
 - **Do** use Manrope for explanation and JetBrains Mono for measured data.
 - **Do** keep compressed PNG/WAV Payload bytes opaque and label previews as original-file rendering.
 - **Do** honor keyboard focus, roving tab behavior, and prefers-reduced-motion.

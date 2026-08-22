@@ -7,7 +7,7 @@ related_targets: ["route:/"]
 
 ## Scope and visitor mode
 
-Desktop inspector at `/inspect`. Operate mode. A visitor is already inside an Inspection and needs to connect a Structure to its bytes and Field details.
+Desktop Inspector at `/inspect`. Operate mode. A visitor is already inside an Inspection and needs to connect a Structure to its bytes and Field details. Phone-sized viewports return to `/` because the Inspector is not available there.
 
 ## Audience, task, proof, constraints
 

@@ -823,6 +823,16 @@ mount.addEventListener('drop', handleDrop);
 
 function renderRoute(): void {
   view = router.currentView();
+  if (view === 'inspect' && isNarrowViewport()) {
+    fileFlow.cancel();
+    revokePreview(session);
+    session = null;
+    operation = { phase: 'ready', origin: 'landing' };
+    view = 'landing';
+    window.history.replaceState(null, '', router.href('/'));
+    render();
+    return;
+  }
   if (view === 'landing') {
     fileFlow.cancel();
     operation = { phase: 'ready', origin: 'landing' };
@@ -849,7 +859,7 @@ window.addEventListener('resize', () => {
   const nextNarrowViewport = isNarrowViewport();
   if (nextNarrowViewport === lastNarrowViewport) return;
   lastNarrowViewport = nextNarrowViewport;
-  render();
+  renderRoute();
 });
 window.addEventListener('beforeunload', () => revokePreview(session));
 renderRoute();
